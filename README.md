@@ -36,6 +36,10 @@ curl http://localhost:8000/v1/chat/completions \
   -d '{"model":"simulated-llama-3-8b","messages":[{"role":"user","content":"Explain paged attention simply"}],"max_tokens":100}'
 ```
 
+## Watch it self-tune
+
+In Gateway Docs, run `POST /demo/load` using its default body. It warms one shared prefix and sends 12 concurrent long generations. The controller checks every two seconds, detects decode pressure, and increases the simulated decode-pool size. Refresh the Streamlit dashboard to see `last_controller_decision` and the new topology.
+
 ## Architecture
 
 ```mermaid
