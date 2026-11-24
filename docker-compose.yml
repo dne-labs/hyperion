@@ -35,3 +35,12 @@ services:
       NEXT_PUBLIC_GATEWAY_URL: http://localhost:8000
     ports: ["8501:3000"]
     depends_on: [gateway]
+
+  # Optional offline capacity simulator. It starts only when explicitly asked:
+  # docker compose --profile vidur run --rm vidur --qps 4 --requests 128
+  vidur:
+    build:
+      context: .
+      dockerfile: Dockerfile.vidur
+    profiles: ["vidur"]
+    volumes: [".:/workspace"]
