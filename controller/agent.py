@@ -8,7 +8,7 @@ import httpx
 from hyperion_sim.runtime import RuntimeState
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-INTERVAL = int(os.getenv("HYPERION_CONTROLLER_INTERVAL_SECONDS", "10"))
+INTERVAL = int(os.getenv("HYPERION_CONTROLLER_INTERVAL_SECONDS", "2"))
 GATEWAY_URL = os.getenv("HYPERION_GATEWAY_URL", "http://gateway:8000")
 
 
@@ -35,6 +35,7 @@ async def run() -> None:
                 before = (await client.get(f"{GATEWAY_URL}/topology")).json()
                 next_state, decision = decide(before)
                 after = (await client.post(f"{GATEWAY_URL}/topology", json=next_state.__dict__)).json()
+                await client.post(f"{GATEWAY_URL}/controller/decision", params={"decision": decision})
                 logging.info("controller=%s topology=%s", decision, after["state"])
             except httpx.HTTPError as error:
                 logging.warning("controller could not reach gateway: %s", error)
