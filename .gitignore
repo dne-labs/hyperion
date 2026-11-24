@@ -4,3 +4,5 @@
 __pycache__/
 *.py[cod]
 simulator_output/
+dashboard-next/node_modules/
+dashboard-next/.next/
