@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -12,7 +13,7 @@ def main() -> None:
     p.add_argument("--requests", type=int, default=128)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
-    command = ["python", "-m", "vidur.main", "--replica_config_device", "a100", "--replica_config_model_name", "meta-llama/Meta-Llama-3-8B", "--cluster_config_num_replicas", "1", "--replica_config_tensor_parallel_size", "1", "--request_generator_config_type", "synthetic", "--synthetic_request_generator_config_num_requests", str(args.requests), "--interval_generator_config_type", "poisson", "--poisson_request_interval_generator_config_qps", str(args.qps)]
+    command = [sys.executable, "-m", "vidur.main", "--replica_config_device", "a100", "--replica_config_model_name", "meta-llama/Meta-Llama-3-8B", "--cluster_config_num_replicas", "1", "--replica_config_tensor_parallel_size", "1", "--request_generator_config_type", "synthetic", "--synthetic_request_generator_config_num_requests", str(args.requests), "--interval_generator_config_type", "poisson", "--poisson_request_interval_generator_config_qps", str(args.qps)]
     Path("simulator_output").mkdir(exist_ok=True)
     Path("simulator_output/hyperion-vidur-command.json").write_text(json.dumps({"command": command, "purpose": "Hyperion no-GPU capacity simulation"}, indent=2))
     print(" ".join(command))
