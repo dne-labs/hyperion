@@ -1,0 +1,12 @@
+# Vidur's documented runtime is Python 3.10. Keeping it in this image prevents
+# it from conflicting with Hyperion's normal Python environment.
+FROM python:3.10-slim
+
+WORKDIR /opt/vidur
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 https://github.com/microsoft/vidur.git . \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir .
+
+WORKDIR /workspace
+ENTRYPOINT ["python", "-m", "hyperion_sim.vidur_runner"]
