@@ -59,16 +59,13 @@ flowchart LR
 
 ## Running Vidur (optional)
 
-Vidur currently requires Python 3.10. Keep it separate from the regular API environment:
+Vidur runs in its own Python 3.10 Docker image, so it cannot conflict with your normal Python installation:
 
 ```bash
-python3.10 -m venv .venv-vidur
-source .venv-vidur/bin/activate
-pip install -r requirements-vidur.txt
-python -m hyperion_sim.vidur_runner --qps 6 --requests 128
+docker compose --profile vidur run --rm vidur --qps 4 --requests 128
 ```
 
-The runner writes a reproducible command and scenario metadata under `simulator_output/`. For exact model/device profiles, use the supported Vidur model/device combinations described in its README.
+The first run downloads the Vidur image dependencies. The runner writes a reproducible command and scenario metadata under `simulator_output/`. For exact model/device profiles, use the supported Vidur model/device combinations described in its README.
 
 ## Controller policy
 
