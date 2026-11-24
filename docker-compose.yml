@@ -28,10 +28,10 @@ services:
     volumes: ["./grafana/provisioning:/etc/grafana/provisioning:ro"]
 
   dashboard:
-    build: .
-    command: streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+    build:
+      context: .
+      dockerfile: dashboard-next/Dockerfile
     environment:
-      HYPERION_GATEWAY_URL: http://gateway:8000
-    ports: ["8501:8501"]
-    volumes: [".:/app"]
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:8000
+    ports: ["8501:3000"]
     depends_on: [gateway]
