@@ -35,7 +35,10 @@ async def run() -> None:
                 before = (await client.get(f"{GATEWAY_URL}/topology")).json()
                 next_state, decision = decide(before)
                 after = (await client.post(f"{GATEWAY_URL}/topology", json=next_state.__dict__)).json()
-                await client.post(f"{GATEWAY_URL}/controller/decision", params={"decision": decision})
+                # Preserve the last meaningful action in the dashboard instead
+                # of overwriting it every idle loop with "hold".
+                if decision != "hold":
+                    await client.post(f"{GATEWAY_URL}/controller/decision", params={"decision": decision})
                 logging.info("controller=%s topology=%s", decision, after["state"])
             except httpx.HTTPError as error:
                 logging.warning("controller could not reach gateway: %s", error)
