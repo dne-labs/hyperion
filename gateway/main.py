@@ -27,6 +27,12 @@ class ChatRequest(BaseModel):
     stream: bool = False
 
 
+class LoadRequest(BaseModel):
+    requests: int = Field(default=12, ge=1, le=100)
+    max_tokens: int = Field(default=250, ge=1, le=1024)
+    shared_prefix: str = "You are Hyperion, an inference serving operating system."
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     yield
@@ -52,6 +58,12 @@ async def topology() -> dict:
 @app.post("/topology")
 async def update_topology(update: RuntimeState) -> dict:
     runtime.apply(update)
+    return runtime.snapshot()
+
+
+@app.post("/controller/decision")
+async def controller_decision(decision: str) -> dict:
+    runtime.record_controller_decision(decision)
     return runtime.snapshot()
 
 
@@ -81,4 +93,23 @@ async def chat(request: ChatRequest) -> dict:
         "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": outcome.prompt_tokens, "completion_tokens": request.max_tokens, "total_tokens": outcome.prompt_tokens + request.max_tokens},
         "hyperion": outcome.as_dict() | {"e2e_seconds": round(total, 4)},
+    }
+
+
+@app.post("/demo/load")
+async def demo_load(request: LoadRequest) -> dict:
+    """Generate concurrent, shared-prefix traffic to demonstrate control decisions."""
+    started = time.perf_counter()
+    # Warm the shared system prefix. The following burst should reuse it.
+    await runtime.execute(f"system: {request.shared_prefix}\nuser: warm cache", 1)
+    prompts = [f"system: {request.shared_prefix}\nuser: Explain request number {index}." for index in range(request.requests)]
+    outcomes = await asyncio.gather(*(runtime.execute(prompt, request.max_tokens) for prompt in prompts))
+    for outcome in outcomes:
+        record_request(outcome, outcome.prefill_seconds + outcome.decode_seconds)
+    return {
+        "message": "Burst completed. Refresh the dashboard and inspect last_controller_decision.",
+        "requests": request.requests,
+        "cache_hits": sum(outcome.cache_hit for outcome in outcomes),
+        "duration_seconds": round(time.perf_counter() - started, 3),
+        "topology": runtime.snapshot(),
     }
