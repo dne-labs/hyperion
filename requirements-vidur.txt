@@ -1,0 +1,2 @@
+# Install in Python 3.10 only. Vidur supplies the profiling-based GPU model.
+git+https://github.com/microsoft/vidur.git@main
