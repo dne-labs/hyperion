@@ -12,8 +12,9 @@ try:
     a.metric("Prefill replicas", state["prefill_replicas"])
     b.metric("Decode replicas", state["decode_replicas"])
     c.metric("Prefix entries", topology["cache_entries"])
+    st.info(f"Last controller decision: `{topology['last_controller_decision']}`")
     st.subheader("Controller topology")
     st.json(topology)
-    st.caption("Refresh after sending gateway traffic. This is CPU-only simulated inference; Vidur supplies offline capacity studies.")
+    st.caption("For a live scaling demo, use POST /demo/load in Gateway Docs with its default JSON, then refresh this page.")
 except Exception as error:
     st.error(f"Gateway unavailable: {error}")
