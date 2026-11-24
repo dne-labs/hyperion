@@ -26,7 +26,7 @@ Open:
 - Gateway docs: http://localhost:8000/docs
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000 (`admin` / `hyperion`)
-- Dashboard: http://localhost:8501
+- Next.js Control Room: http://localhost:8501
 
 Send a request:
 
@@ -38,7 +38,9 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## Watch it self-tune
 
-In Gateway Docs, run `POST /demo/load` using its default body. It warms one shared prefix and sends 12 concurrent long generations. The controller checks every two seconds, detects decode pressure, and increases the simulated decode-pool size. Refresh the Streamlit dashboard to see `last_controller_decision` and the new topology.
+In Gateway Docs, run `POST /demo/load` using its default body. It warms one shared prefix and sends 12 concurrent long generations. The controller checks every two seconds, detects decode pressure, and increases the simulated decode-pool size. Refresh the Control Room to see `last_controller_decision` and the new topology.
+
+The Next.js Control Room includes the same traffic-burst action as a button and explains each stage in plain language.
 
 ## Architecture
 
