@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -39,6 +40,12 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Hyperion Gateway", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def prompt_from(messages: list[Message]) -> str:
