@@ -3,6 +3,10 @@ services:
     build: .
     command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000
     env_file: .env
+    environment:
+      HYPERION_BACKEND: ${HYPERION_BACKEND:-simulator}
+      HYPERION_VLLM_URL: http://vllm-cpu:8000
+      HYPERION_VLLM_MODEL: ${HYPERION_VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
     ports: ["8000:8000"]
     volumes: [".:/app"]
 
@@ -52,3 +56,29 @@ services:
     volumes:
       - .:/workspace
       - ./simulator_output:/opt/vidur/simulator_output
+
+  # Optional real CPU inference. Start explicitly with --profile vllm-cpu.
+  # Keep the CPU and sequence limits low on machines without a GPU.
+  vllm-cpu:
+    image: vllm/vllm-openai-cpu:v0.34.0-x86_64
+    profiles: ["vllm-cpu"]
+    cpus: 2.0
+    shm_size: 2gb
+    environment:
+      OMP_NUM_THREADS: 2
+      MKL_NUM_THREADS: 2
+      VLLM_CPU_KVCACHE_SPACE: "1"
+    ports: ["8100:8000"]
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    command:
+      - Qwen/Qwen2.5-0.5B-Instruct
+      - --dtype
+      - float32
+      - --max-model-len
+      - "1024"
+      - --max-num-seqs
+      - "1"
+
+volumes:
+  hf-cache:
