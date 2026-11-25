@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import os
 import time
 import uuid
@@ -112,6 +113,72 @@ async def metrics() -> Response:
         # service starts or restarts.
         pass
     return local_metrics
+
+@app.get("/optimization/runs")
+async def optimization_runs() -> dict:
+    project_root = Path(__file__).resolve().parents[1]
+    output_dir = project_root / "simulator_output"
+    runs = []
+    for profile_path in sorted(output_dir.glob("*/hyperion_profile.json")):
+        run_dir = profile_path.parent
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        scenario_path = run_dir / "hyperion_scenario.json"
+        if scenario_path.is_file():
+            profile["configuration"] = json.loads(
+                scenario_path.read_text(encoding="utf-8")
+            )
+        else:
+            profile.setdefault("configuration", {})
+        samples = []
+        metrics_path = run_dir / "request_metrics.csv"
+        if metrics_path.is_file():
+            with metrics_path.open(newline="", encoding="utf-8") as file:
+                for row in csv.DictReader(file):
+                    raw = row.get(
+                        "decode_time_execution_plus_preemption_normalized", ""
+                    )
+                    if raw:
+                        try:
+                            samples.append(float(raw))
+                        except ValueError:
+                            continue
+        profile["run_id"] = run_dir.name
+        profile["decode_samples_seconds"] = samples
+        runs.append(profile)
+    return {
+        "runs": runs,
+        "count": len(runs),
+        "source": "Vidur offline simulation",
+        "hardware_note": "A100 profile estimates, not measurements from physical GPU hardware.",
+    }
+
+
+@app.post("/optimization/run")
+async def start_optimization(request: dict) -> dict:
+    optimizer_url = os.getenv("HYPERION_VIDUR_URL", "http://vidur:8100")
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(1800.0, connect=5.0)
+        ) as client:
+            response = await client.post(f"{optimizer_url}/sweep", json=request)
+    except httpx.TimeoutException as error:
+        raise HTTPException(
+            status_code=504,
+            detail="Vidur took too long. Check its container logs and the saved run folders.",
+        ) from error
+    except httpx.HTTPError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Vidur optimizer is not running. Start it with: docker compose --profile vidur up -d --build vidur",
+        ) from error
+    if not response.is_success:
+        try:
+            detail = response.json().get("detail", "Vidur sweep failed.")
+        except ValueError:
+            detail = "Vidur sweep failed."
+        raise HTTPException(status_code=response.status_code, detail=detail)
+    return response.json()
+
 
 @app.get("/vidur-profile")
 async def get_vidur_profile() -> dict:
