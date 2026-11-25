@@ -102,6 +102,7 @@ const gateway =
 
 const navItems = [
   { label: "Overview", href: "#overview", icon: Activity },
+  { label: "Try a request", href: "#try-request", icon: Play },
   { label: "Capacity planner", href: "#capacity", icon: Gauge },
   { label: "Worker pools", href: "#workers", icon: Server },
   { label: "Controller", href: "#controller", icon: BrainCircuit },
@@ -403,9 +404,9 @@ export default function Home() {
               </span>
             </div>
             <p className="mt-3 text-[11px] leading-5 text-slate-500">
-              CPU simulation mode
+              Simulator is the default
               <br />
-              No GPU required
+              Optional real vLLM on CPU
             </p>
             <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-400/80">
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -467,7 +468,7 @@ export default function Home() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-1.5">
                     <Cpu className="h-3.5 w-3.5 text-cyan-300" />
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">
-                      CPU-only systems simulator
+                      Simulator default · real CPU inference optional
                     </span>
                   </div>
                   <h1 className="mt-5 max-w-3xl text-3xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-4xl lg:text-[42px]">
@@ -476,8 +477,8 @@ export default function Home() {
                   </h1>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-[15px]">
                     Explore how traffic, worker capacity, prefix reuse, and
-                    latency targets interact. The live control plane is
-                    simulated; Vidur adds offline A100 capacity estimates.
+                    latency targets interact. The simulator is the default;
+                    you can opt into a real small CPU model below.
                   </p>
                   <div className="mt-6 flex flex-wrap items-center gap-3">
                     <button
