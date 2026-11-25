@@ -11,9 +11,19 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--qps", type=float, default=4.0)
     p.add_argument("--requests", type=int, default=128)
+    p.add_argument(
+        "--replicas",
+        type=int,
+        default=1,
+        help="Number of simulated model replicas (default: 1)",
+    )
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
-    command = [sys.executable, "-m", "vidur.main", "--replica_config_device", "a100", "--replica_config_model_name", "meta-llama/Meta-Llama-3-8B", "--cluster_config_num_replicas", "1", "--replica_config_tensor_parallel_size", "1", "--request_generator_config_type", "synthetic", "--synthetic_request_generator_config_num_requests", str(args.requests), "--interval_generator_config_type", "poisson", "--poisson_request_interval_generator_config_qps", str(args.qps),"--random_forrest_execution_time_predictor_config_k_fold_cv_splits",
+
+    if args.replicas < 1:
+        p.error("--replicas must be at least 1")
+
+    command = [sys.executable, "-m", "vidur.main", "--replica_config_device", "a100", "--replica_config_model_name", "meta-llama/Meta-Llama-3-8B", "--cluster_config_num_replicas", str(args.replicas), "--replica_config_tensor_parallel_size", "1", "--request_generator_config_type", "synthetic", "--synthetic_request_generator_config_num_requests", str(args.requests), "--interval_generator_config_type", "poisson", "--poisson_request_interval_generator_config_qps", str(args.qps), "--random_forrest_execution_time_predictor_config_k_fold_cv_splits",
 "2",
 "--random_forrest_execution_time_predictor_config_num_estimators",
 "250",
