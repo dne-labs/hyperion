@@ -41,8 +41,8 @@ services:
     ports: ["8501:3000"]
     depends_on: [gateway]
 
-  # Optional offline capacity simulator. It starts only when explicitly asked:
-  # docker compose --profile vidur run --rm vidur --qps 4 --requests 128
+  # Optional Vidur optimization API. Start it only when running a sweep:
+  # docker compose --profile vidur up -d --build vidur
   vidur:
     build:
       context: .
