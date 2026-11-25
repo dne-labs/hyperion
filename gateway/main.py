@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import uuid
+
+import httpx
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -59,7 +62,17 @@ def prompt_from(messages: list[Message]) -> str:
 
 @app.get("/healthz")
 async def health() -> dict:
-    return {"status": "ok", "mode": "simulation"}
+    backend = os.getenv("HYPERION_BACKEND", "simulator")
+    return {
+        "status": "ok",
+        "mode": "vllm_cpu" if backend == "vllm_cpu" else "simulation",
+        "model": os.getenv(
+            "HYPERION_VLLM_MODEL",
+            "Qwen/Qwen2.5-0.5B-Instruct",
+        )
+        if backend == "vllm_cpu"
+        else "simulated-llama-3-8b",
+    }
 
 
 @app.get("/topology")
@@ -81,7 +94,24 @@ async def controller_decision(decision: str) -> dict:
 
 @app.get("/metrics")
 async def metrics() -> Response:
-    return metrics_response()
+    local_metrics = metrics_response()
+    if os.getenv("HYPERION_BACKEND", "simulator") != "vllm_cpu":
+        return local_metrics
+
+    backend_url = os.getenv("HYPERION_VLLM_URL", "http://vllm-cpu:8000")
+    try:
+        async with httpx.AsyncClient(timeout=2) as client:
+            upstream = await client.get(f"{backend_url}/metrics")
+        if upstream.is_success:
+            return Response(
+                content=local_metrics.body + b"\\n" + upstream.content,
+                media_type=local_metrics.media_type,
+            )
+    except httpx.HTTPError:
+        # Keep the Gateway's own metrics available while the optional model
+        # service starts or restarts.
+        pass
+    return local_metrics
 
 @app.get("/vidur-profile")
 async def get_vidur_profile() -> dict:
@@ -102,7 +132,49 @@ async def get_vidur_profile() -> dict:
 @app.post("/v1/chat/completions")
 async def chat(request: ChatRequest) -> dict:
     if request.stream:
-        raise HTTPException(400, "Streaming is planned for Phase 2; use stream=false in the simulator.")
+        raise HTTPException(400, "Streaming is not enabled in this Hyperion gateway yet.")
+
+    if os.getenv("HYPERION_BACKEND", "simulator") == "vllm_cpu":
+        backend_url = os.getenv("HYPERION_VLLM_URL", "http://vllm-cpu:8000")
+        model_name = os.getenv(
+            "HYPERION_VLLM_MODEL",
+            "Qwen/Qwen2.5-0.5B-Instruct",
+        )
+        payload = request.model_dump()
+        if payload["model"] == "simulated-llama-3-8b":
+            payload["model"] = model_name
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(300, connect=5)
+            ) as client:
+                upstream = await client.post(
+                    f"{backend_url}/v1/chat/completions",
+                    json=payload,
+                )
+        except httpx.TimeoutException as error:
+            raise HTTPException(
+                status_code=504,
+                detail="The CPU model took too long to respond.",
+            ) from error
+        except httpx.HTTPError as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The optional vLLM CPU service is unavailable.",
+            ) from error
+
+        if not upstream.is_success:
+            raise HTTPException(
+                status_code=502,
+                detail=f"vLLM CPU service returned HTTP {upstream.status_code}.",
+            )
+        result = upstream.json()
+        result["hyperion"] = {
+            "mode": "vllm_cpu",
+            "backend": "vLLM CPU",
+            "model": model_name,
+        }
+        return result
+
     prompt = prompt_from(request.messages)
     started = time.perf_counter()
     outcome = await runtime.execute(prompt, request.max_tokens)
@@ -119,7 +191,8 @@ async def chat(request: ChatRequest) -> dict:
         "model": request.model,
         "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": outcome.prompt_tokens, "completion_tokens": request.max_tokens, "total_tokens": outcome.prompt_tokens + request.max_tokens},
-        "hyperion": outcome.as_dict() | {"e2e_seconds": round(total, 4)},
+        "hyperion": outcome.as_dict()
+        | {"e2e_seconds": round(total, 4), "mode": "simulator"},
     }
 
 @app.get("/vidur-comparison")
