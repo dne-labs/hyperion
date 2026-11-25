@@ -165,6 +165,92 @@ async def get_vidur_comparison() -> dict:
         "candidate": candidate,
     }
 
+@app.get("/vidur-recommendation")
+async def get_vidur_recommendation(
+    max_ttft_p95_ms: float = 600,
+    max_e2e_p95_seconds: float = 10,
+    max_scheduling_delay_p95_ms: float = 400,
+) -> dict:
+    """Recommend the fewest tested replicas meeting the requested latency targets."""
+    limits = {
+        "ttft_p95_ms": max_ttft_p95_ms,
+        "e2e_p95_seconds": max_e2e_p95_seconds,
+        "scheduling_delay_p95_ms": max_scheduling_delay_p95_ms,
+    }
+    if any(limit <= 0 for limit in limits.values()):
+        raise HTTPException(status_code=422, detail="Latency targets must be greater than zero.")
+
+    project_root = Path(__file__).resolve().parents[1]
+    profile_paths = sorted(
+        (project_root / "simulator_output").glob("*/hyperion_profile.json")
+    )
+    if not profile_paths:
+        raise HTTPException(
+            status_code=404,
+            detail="No Vidur profiles found. Run Vidur and generate profiles first.",
+        )
+
+    workload_fields = (
+        "model",
+        "gpu_profile",
+        "qps",
+        "request_count",
+        "prompt_tokens",
+        "output_tokens",
+    )
+    profiles = [
+        (path.parent.name, json.loads(path.read_text(encoding="utf-8")))
+        for path in profile_paths
+    ]
+    reference_run, reference = profiles[-1]
+    matching = [
+        (run, profile)
+        for run, profile in profiles
+        if all(profile.get(field) == reference.get(field) for field in workload_fields)
+    ]
+
+    evaluated = []
+    for run, profile in matching:
+        latency = profile.get("latency", {})
+        missing_metrics = [key for key in limits if key not in latency]
+        if missing_metrics:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Profile {run} is missing latency metrics: {', '.join(missing_metrics)}",
+            )
+        failures = [
+            key for key, limit in limits.items() if latency[key] > limit
+        ]
+        evaluated.append({
+            "run": run,
+            "replicas": profile["replicas"],
+            "meets_targets": not failures,
+            "latency": {key: latency[key] for key in limits},
+            "failed_targets": failures,
+        })
+
+    passing = [item for item in evaluated if item["meets_targets"]]
+    passing.sort(key=lambda item: item["replicas"])
+    recommendation = passing[0] if passing else None
+
+    return {
+        "workload": {field: reference[field] for field in workload_fields},
+        "latest_run": reference_run,
+        "targets": limits,
+        "tested_profiles": sorted(evaluated, key=lambda item: item["replicas"]),
+        "recommendation": recommendation,
+        "message": (
+            "Fewest tested replica count meeting all latency targets."
+            if recommendation
+            else "No saved profile for this workload meets all latency targets."
+        ),
+        "hardware_note": (
+            "Vidur estimates this workload using a GPU profile; this is not a "
+            "measurement from a physical GPU."
+        ),
+    }
+
+
 @app.post("/demo/load")
 async def demo_load(request: LoadRequest) -> dict:
     """Generate concurrent, shared-prefix traffic to demonstrate control decisions."""
