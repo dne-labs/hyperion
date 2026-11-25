@@ -5,16 +5,20 @@ import {
   Activity,
   ArrowRight,
   BrainCircuit,
+  Cpu,
   Database,
   Gauge,
+  Layers3,
+  Network,
   Play,
+  RefreshCw,
   Server,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Timer,
   Zap,
 } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 type Topology = {
   mode: string;
@@ -27,10 +31,7 @@ type Topology = {
     speculative_decoding: boolean;
   };
   cache_entries: number;
-  queues: {
-    prefill: number;
-    decode: number;
-  };
+  queues: { prefill: number; decode: number };
   last_controller_decision: string;
 };
 
@@ -99,29 +100,66 @@ type VidurRecommendation = {
 const gateway =
   process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8000";
 
-function Metric({
-  icon: Icon,
+const navItems = [
+  { label: "Overview", href: "#overview", icon: Activity },
+  { label: "Capacity planner", href: "#capacity", icon: Gauge },
+  { label: "Worker pools", href: "#workers", icon: Server },
+  { label: "Controller", href: "#controller", icon: BrainCircuit },
+  { label: "Request path", href: "#request-path", icon: Network },
+];
+
+function StatCard({
   label,
   value,
-  help,
+  detail,
+  icon: Icon,
+  accent,
 }: {
-  icon: typeof Server;
   label: string;
   value: string | number;
-  help: string;
+  detail: string;
+  icon: typeof Server;
+  accent: string;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <p className="text-sm text-slate-400">{label}</p>
-        <Icon className="h-4 w-4 text-indigo-300" />
-      </CardHeader>
+    <div className="group rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 transition duration-200 hover:border-white/[0.13] hover:bg-[#111823]">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-100">
+            {value}
+          </p>
+        </div>
+        <div className={"rounded-xl border border-white/[0.06] p-2.5 " + accent}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">{detail}</p>
+    </div>
+  );
+}
 
-      <CardContent>
-        <p className="text-3xl font-bold">{value}</p>
-        <p className="mt-2 text-xs leading-5 text-slate-500">{help}</p>
-      </CardContent>
-    </Card>
+function SectionHeading({
+  eyebrow,
+  title,
+  detail,
+}: {
+  eyebrow: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="mb-5">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400/80">
+        {eyebrow}
+      </p>
+      <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+        {title}
+      </h2>
+      <p className="mt-1.5 text-sm leading-6 text-slate-500">{detail}</p>
+    </div>
   );
 }
 
@@ -141,15 +179,12 @@ export default function Home() {
     e2e_p95_seconds: "10",
     scheduling_delay_p95_ms: "400",
   });
-  const [status, setStatus] = useState("Waiting for the gateway…");
+  const [status, setStatus] = useState("Connecting to Gateway");
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      // Topology is the live service state. Vidur profiles are optional until a
-      // capacity study has been run, so a missing profile must not mark the
-      // whole Gateway as offline.
-      const topologyResponse = await fetch(`${gateway}/topology`);
+      const topologyResponse = await fetch(gateway + "/topology");
       if (!topologyResponse.ok) {
         throw new Error("Gateway topology request failed");
       }
@@ -161,12 +196,13 @@ export default function Home() {
           targets.scheduling_delay_p95_ms,
         ),
       });
+
       const [profileData, comparisonData, recommendationData] =
         await Promise.all(
           [
-            `${gateway}/vidur-profile`,
-            `${gateway}/vidur-comparison`,
-            `${gateway}/vidur-recommendation?${targetQuery}`,
+            gateway + "/vidur-profile",
+            gateway + "/vidur-comparison",
+            gateway + "/vidur-recommendation?" + targetQuery.toString(),
           ].map(async (url) => {
             try {
               const response = await fetch(url);
@@ -177,39 +213,28 @@ export default function Home() {
           }),
         );
 
-      const topologyData: Topology = await topologyResponse.json();
-      setTopology(topologyData);
+      setTopology(await topologyResponse.json());
       setProfile(profileData);
       setComparison(comparisonData);
       setRecommendation(recommendationData);
-      setStatus("Connected — updates every 2 seconds");
+      setStatus("All systems operational");
     } catch {
-      setStatus("Gateway is offline. Start Docker Compose to reconnect.");
+      setStatus("Gateway unavailable");
     }
   }, [targets]);
 
   useEffect(() => {
     void refresh();
-
-    const timer = window.setInterval(() => {
-      void refresh();
-    }, 2000);
-
+    const timer = window.setInterval(() => void refresh(), 3000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
   async function runDemo() {
     setLoading(true);
-    setStatus(
-      "Sending 12 shared-prefix requests. The controller is watching pressure…",
-    );
-
     try {
-      const response = await fetch(`${gateway}/demo/load`, {
+      const response = await fetch(gateway + "/demo/load", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           requests: 12,
           max_tokens: 250,
@@ -217,23 +242,34 @@ export default function Home() {
             "You are Hyperion, an inference serving operating system.",
         }),
       });
-
-      if (!response.ok) {
-        throw new Error("The load demo request failed");
-      }
-
+      if (!response.ok) throw new Error("Traffic demo failed");
       await refresh();
-      setStatus("Burst complete. Hyperion recorded the result below.");
+      setStatus("Traffic burst complete");
     } catch {
-      setStatus("Could not reach the Gateway. Is Docker running?");
+      setStatus("Could not send traffic — check the Gateway");
     } finally {
       setLoading(false);
     }
   }
 
-  const state = topology?.state;
-  const isConnected = status.startsWith("Connected");
+  function applyTargets(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTargets({
+      ttft_p95_ms: Number(targetDraft.ttft_p95_ms),
+      e2e_p95_seconds: Number(targetDraft.e2e_p95_seconds),
+      scheduling_delay_p95_ms: Number(
+        targetDraft.scheduling_delay_p95_ms,
+      ),
+    });
+  }
 
+  const state = topology?.state;
+  const profiles = recommendation?.tested_profiles ?? [];
+  const maxTtft = Math.max(
+    1,
+    ...profiles.map((item) => item.latency.ttft_p95_ms),
+    recommendation?.targets.ttft_p95_ms ?? 0,
+  );
   const comparisonRows = comparison
     ? [
         {
@@ -243,516 +279,828 @@ export default function Home() {
           unit: "ms",
         },
         {
-          label: "E2E p95",
+          label: "End-to-end p95",
           baseline: comparison.baseline.latency.e2e_p95_seconds,
           candidate: comparison.candidate.latency.e2e_p95_seconds,
           unit: "sec",
         },
         {
-          label: "TPOT p95",
+          label: "Time per output token",
           baseline: comparison.baseline.latency.tpot_p95_ms,
           candidate: comparison.candidate.latency.tpot_p95_ms,
-          unit: "ms/token",
+          unit: "ms",
         },
         {
-          label: "Scheduling delay p95",
+          label: "Queue delay p95",
           baseline: comparison.baseline.latency.scheduling_delay_p95_ms,
-          candidate: comparison.candidate.latency.scheduling_delay_p95_ms,
+          candidate:
+            comparison.candidate.latency.scheduling_delay_p95_ms,
           unit: "ms",
         },
       ]
     : [];
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#172554_0%,#020617_42%)] px-5 py-8 font-sans md:px-10">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col justify-between gap-4 border-b border-slate-800 pb-6 md:flex-row md:items-center">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <Zap className="h-5 w-5 text-indigo-300" />
-              <Badge>No physical GPU required</Badge>
+    <main className="min-h-screen bg-[#080b10] text-slate-100">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-40 -top-48 h-[520px] w-[520px] rounded-full bg-cyan-500/[0.06] blur-[130px]" />
+        <div className="absolute right-0 top-0 h-[460px] w-[460px] rounded-full bg-indigo-500/[0.05] blur-[140px]" />
+      </div>
+
+      <div className="relative flex min-h-screen">
+        <aside className="hidden w-[248px] shrink-0 flex-col border-r border-white/[0.07] bg-[#0a0d13]/90 px-5 py-6 lg:flex">
+          <a href="#overview" className="flex items-center gap-3 px-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-300 to-blue-500 text-[#071018] shadow-lg shadow-cyan-900/30">
+              <Zap className="h-5 w-5 fill-current" />
             </div>
-
-            <h1 className="text-3xl font-bold tracking-tight text-white">
-              Hyperion Control Room
-            </h1>
-
-            <p className="mt-2 text-slate-400">
-              A simple view of what your inference system is doing.
-            </p>
-          </div>
-
-          <div className="text-sm text-slate-400">
-            <span
-              className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                isConnected ? "bg-emerald-400" : "bg-amber-400"
-              }`}
-            />
-            {status}
-          </div>
-        </header>
-
-        {/* Live simulated Hyperion topology */}
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Metric
-            icon={Server}
-            label="Prefill workers"
-            value={state?.prefill_replicas ?? "—"}
-            help="Workers that read and process incoming prompts."
-          />
-
-          <Metric
-            icon={Zap}
-            label="Decode workers"
-            value={state?.decode_replicas ?? "—"}
-            help="Workers that generate answers token by token."
-          />
-
-          <Metric
-            icon={Database}
-            label="Saved prefixes"
-            value={topology?.cache_entries ?? "—"}
-            help="Reusable prompt context stored in the simulated cache."
-          />
-
-          <Metric
-            icon={Gauge}
-            label="Waiting requests"
-            value={
-              topology
-                ? topology.queues.prefill + topology.queues.decode
-                : "—"
-            }
-            help="Requests currently waiting in the simulated worker pools."
-          />
-        </section>
-
-        {/* Results from the saved Vidur experiment */}
-        <section className="mt-8">
-          <h2 className="mb-2 text-lg font-semibold text-white">
-            Vidur performance profile
-          </h2>
-
-          <p className="mb-4 text-sm text-slate-400">
-            {profile
-              ? `${profile.model} · ${profile.gpu_profile.toUpperCase()} profile · ${profile.qps} requests/sec · ${profile.request_count} requests`
-              : "Loading Vidur results…"}
-          </p>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Metric
-              icon={Gauge}
-              label="TTFT p95"
-              value={
-                profile
-                  ? `${profile.latency.ttft_p95_ms.toFixed(0)} ms`
-                  : "—"
-              }
-              help="95% of simulated requests got their first token within this time."
-            />
-
-            <Metric
-              icon={Zap}
-              label="TPOT p95"
-              value={
-                profile
-                  ? `${profile.latency.tpot_p95_ms.toFixed(1)} ms`
-                  : "—"
-              }
-              help="High-end time per generated token in this simulation."
-            />
-
-            <Metric
-              icon={Activity}
-              label="E2E p95"
-              value={
-                profile
-                  ? `${profile.latency.e2e_p95_seconds.toFixed(1)} sec`
-                  : "—"
-              }
-              help="95% of complete simulated requests finished within this time."
-            />
-
-            <Metric
-              icon={Gauge}
-              label="Queue delay p95"
-              value={
-                profile
-                  ? `${profile.latency.scheduling_delay_p95_ms.toFixed(0)} ms`
-                  : "—"
-              }
-              help="High-end time requests waited for the scheduler."
-            />
-          </div>
-
-          {profile && (
-            <p className="mt-3 text-xs text-slate-500">
-              Workload: {profile.prompt_tokens} prompt tokens and{" "}
-              {profile.output_tokens} output tokens per request. These are
-              simulated hardware-profile results.
-            </p>
-          )}
-        </section>
-
-        <section className="mt-8">
-          <h2 className="mb-2 text-lg font-semibold text-white">
-            Replica recommendation
-          </h2>
-          {recommendation ? (
-            <>
-              <p className="mb-4 text-sm text-slate-400">
-                {recommendation.workload.model} · {recommendation.workload.qps} QPS · {recommendation.workload.request_count} requests. Hyperion checks the saved runs for the latest workload.
+            <div>
+              <p className="text-base font-semibold tracking-wide text-white">
+                HYPERION
               </p>
-              <Card>
-                <CardContent className="pt-5">
-                  <form
-                    className="mb-6 grid gap-3 md:grid-cols-4"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      setTargets({
-                        ttft_p95_ms: Number(targetDraft.ttft_p95_ms),
-                        e2e_p95_seconds: Number(targetDraft.e2e_p95_seconds),
-                        scheduling_delay_p95_ms: Number(
-                          targetDraft.scheduling_delay_p95_ms,
-                        ),
-                      });
-                    }}
-                  >
-                    <label className="grid gap-1 text-xs text-slate-400">
-                      TTFT p95 limit (ms)
-                      <input
-                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-                        type="number"
-                        min="1"
-                        step="10"
-                        required
-                        value={targetDraft.ttft_p95_ms}
-                        onChange={(event) =>
-                          setTargetDraft({
-                            ...targetDraft,
-                            ttft_p95_ms: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs text-slate-400">
-                      E2E p95 limit (sec)
-                      <input
-                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-                        type="number"
-                        min="0.1"
-                        step="0.5"
-                        required
-                        value={targetDraft.e2e_p95_seconds}
-                        onChange={(event) =>
-                          setTargetDraft({
-                            ...targetDraft,
-                            e2e_p95_seconds: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="grid gap-1 text-xs text-slate-400">
-                      Queue delay p95 limit (ms)
-                      <input
-                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-                        type="number"
-                        min="1"
-                        step="10"
-                        required
-                        value={targetDraft.scheduling_delay_p95_ms}
-                        onChange={(event) =>
-                          setTargetDraft({
-                            ...targetDraft,
-                            scheduling_delay_p95_ms: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <div className="flex items-end">
-                      <Button type="submit" className="w-full">
-                        Apply latency targets
-                      </Button>
-                    </div>
-                  </form>
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                Inference control
+              </p>
+            </div>
+          </a>
 
-                  {recommendation.recommendation ? (
-                    <>
-                      <p className="text-xl font-bold text-emerald-300">
-                        Recommended: {recommendation.recommendation.replicas} replica(s)
-                      </p>
-                      <p className="mt-2 text-sm text-slate-400">
-                        This is the smallest tested replica count meeting the configured latency targets.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="font-semibold text-amber-300">
-                      No tested replica count meets all configured targets.
-                    </p>
+          <div className="mt-10 px-3 text-[10px] font-bold uppercase tracking-[0.19em] text-slate-600">
+            Workspace
+          </div>
+          <nav className="mt-3 space-y-1">
+            {navItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className={
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition " +
+                    (index === 0
+                      ? "border border-cyan-300/10 bg-cyan-300/[0.08] text-cyan-100"
+                      : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200")
+                  }
+                >
+                  <Icon
+                    className={
+                      "h-4 w-4 " +
+                      (index === 0
+                        ? "text-cyan-300"
+                        : "text-slate-600 group-hover:text-slate-300")
+                    }
+                  />
+                  {item.label}
+                  {index === 0 && (
+                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300" />
                   )}
+                </a>
+              );
+            })}
+          </nav>
 
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="border-b border-slate-800 text-slate-400">
-                        <tr>
-                          <th className="p-3">Replicas</th>
-                          <th className="p-3">TTFT p95</th>
-                          <th className="p-3">E2E p95</th>
-                          <th className="p-3">Queue delay p95</th>
-                          <th className="p-3">Targets</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recommendation.tested_profiles.map((item) => (
-                          <tr key={item.run} className="border-b border-slate-800">
-                            <td className="p-3">{item.replicas}</td>
-                            <td className="p-3">{item.latency.ttft_p95_ms.toFixed(2)} ms</td>
-                            <td className="p-3">{item.latency.e2e_p95_seconds.toFixed(2)} sec</td>
-                            <td className="p-3">{item.latency.scheduling_delay_p95_ms.toFixed(2)} ms</td>
-                            <td className={item.meets_targets ? "p-3 text-emerald-300" : "p-3 text-rose-300"}>
-                              {item.meets_targets ? "Pass" : "Does not pass"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+          <div className="mt-auto rounded-2xl border border-white/[0.07] bg-[#10151e] p-4">
+            <div className="flex items-center gap-2">
+              <span
+                className={
+                  "h-2 w-2 rounded-full " +
+                  (topology ? "bg-emerald-400" : "bg-amber-400")
+                }
+              />
+              <span className="text-xs font-medium text-slate-300">
+                {topology ? "Gateway connected" : "Waiting for Gateway"}
+              </span>
+            </div>
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">
+              CPU simulation mode
+              <br />
+              No GPU required
+            </p>
+            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-400/80">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Safe demo environment
+            </div>
+          </div>
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#080b10]/85 backdrop-blur-xl">
+            <div className="mx-auto flex h-[68px] max-w-[1500px] items-center justify-between px-5 md:px-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-300/10 text-cyan-300 lg:hidden">
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                    Hyperion / Control room
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Local inference cluster
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 sm:flex">
+                  <span
+                    className={
+                      "h-1.5 w-1.5 rounded-full " +
+                      (topology ? "bg-emerald-400" : "bg-amber-400")
+                    }
+                  />
+                  <span className="text-[11px] text-slate-400">{status}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void refresh()}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-slate-400 transition hover:border-white/[0.14] hover:text-white"
+                  aria-label="Refresh dashboard"
+                  title="Refresh"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <div
+            id="overview"
+            className="mx-auto max-w-[1500px] px-5 pb-12 pt-8 md:px-8 md:pt-10"
+          >
+            <section className="relative overflow-hidden rounded-[26px] border border-cyan-300/[0.12] bg-gradient-to-br from-[#111d29] via-[#101723] to-[#10131c] p-6 shadow-2xl shadow-black/20 md:p-8">
+              <div className="pointer-events-none absolute -right-16 -top-28 h-80 w-80 rounded-full border border-cyan-300/[0.06]" />
+              <div className="pointer-events-none absolute -right-4 -top-16 h-56 w-56 rounded-full border border-cyan-300/[0.08]" />
+              <div className="pointer-events-none absolute right-16 top-8 h-28 w-28 rounded-full bg-cyan-400/[0.07] blur-3xl" />
+              <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_330px] xl:items-center">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-1.5">
+                    <Cpu className="h-3.5 w-3.5 text-cyan-300" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">
+                      CPU-only systems simulator
+                    </span>
+                  </div>
+                  <h1 className="mt-5 max-w-3xl text-3xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-4xl lg:text-[42px]">
+                    Inference control,
+                    <span className="text-cyan-300"> made observable.</span>
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-[15px]">
+                    Explore how traffic, worker capacity, prefix reuse, and
+                    latency targets interact. The live control plane is
+                    simulated; Vidur adds offline A100 capacity estimates.
+                  </p>
+                  <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void runDemo()}
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-[#071018] shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Play className="h-4 w-4 fill-current" />
+                      {loading ? "Sending traffic…" : "Run traffic burst"}
+                    </button>
+                    <a
+                      href="#capacity"
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      View capacity study
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="relative rounded-2xl border border-white/[0.08] bg-[#080d14]/65 p-5 backdrop-blur">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Current topology
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Gateway snapshot
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-emerald-400/10 bg-emerald-300/[0.06] p-2 text-emerald-300">
+                      <Network className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-600">
+                        Prefill
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {state?.prefill_replicas ?? "—"}
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {topology?.queues.prefill ?? 0} waiting
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-600">
+                        Decode
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {state?.decode_replicas ?? "—"}
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {topology?.queues.decode ?? 0} waiting
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2 border-t border-white/[0.07] pt-4">
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                    <p className="text-xs text-slate-400">
+                      Last decision:{" "}
+                      <span className="font-medium text-cyan-100">
+                        {topology?.last_controller_decision?.replaceAll(
+                          "_",
+                          " ",
+                        ) ?? "waiting for metrics"}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Prefill replicas"
+                value={state?.prefill_replicas ?? "—"}
+                detail={"Batch capacity " + (state?.prefill_batch_size ?? "—") + " per worker"}
+                icon={Layers3}
+                accent="bg-sky-400/[0.08] text-sky-300"
+              />
+              <StatCard
+                label="Decode replicas"
+                value={state?.decode_replicas ?? "—"}
+                detail={"Batch capacity " + (state?.decode_batch_size ?? "—") + " per worker"}
+                icon={Zap}
+                accent="bg-violet-400/[0.08] text-violet-300"
+              />
+              <StatCard
+                label="Queued requests"
+                value={
+                  topology
+                    ? topology.queues.prefill + topology.queues.decode
+                    : "—"
+                }
+                detail={
+                  topology
+                    ? topology.queues.prefill + " prefill · " + topology.queues.decode + " decode"
+                    : "Waiting for Gateway data"
+                }
+                icon={Activity}
+                accent="bg-amber-300/[0.08] text-amber-200"
+              />
+              <StatCard
+                label="Cached prefixes"
+                value={topology?.cache_entries ?? "—"}
+                detail={
+                  state?.aggressive_prefix_cache
+                    ? "Aggressive reuse mode enabled"
+                    : "Standard reuse mode"
+                }
+                icon={Database}
+                accent="bg-emerald-300/[0.08] text-emerald-300"
+              />
+            </section>
+
+            <section id="capacity" className="mt-12 scroll-mt-24">
+              <SectionHeading
+                eyebrow="Offline performance study"
+                title="Capacity planner"
+                detail="Compare tested replica counts under the same request mix. The smallest profile meeting every target is recommended."
+              />
+
+              {recommendation ? (
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(310px,0.65fr)]">
+                  <div className="rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 md:p-6">
+                    <div className="flex flex-col justify-between gap-4 border-b border-white/[0.07] pb-5 sm:flex-row sm:items-center">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          TTFT by replica count
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {recommendation.workload.model} · {recommendation.workload.gpu_profile.toUpperCase()} profile
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[10px]">
+                        <span className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1.5 text-slate-400">
+                          {recommendation.workload.qps} QPS
+                        </span>
+                        <span className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1.5 text-slate-400">
+                          {recommendation.workload.request_count} requests
+                        </span>
+                        <span className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1.5 text-slate-400">
+                          {recommendation.workload.prompt_tokens} in / {recommendation.workload.output_tokens} out
+                        </span>
+                      </div>
+                    </div>
+
+                    {profiles.length > 0 ? (
+                      <div className="mt-5 space-y-5">
+                        {profiles.map((item) => {
+                          const width = Math.max(
+                            3,
+                            Math.min(
+                              100,
+                              (item.latency.ttft_p95_ms / maxTtft) * 100,
+                            ),
+                          );
+                          return (
+                            <div key={item.run}>
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.03] text-xs font-semibold text-slate-200">
+                                    {item.replicas}
+                                  </span>
+                                  <span className="text-sm font-medium text-slate-200">
+                                    {item.replicas} replica{item.replicas === 1 ? "" : "s"}
+                                  </span>
+                                  {item.meets_targets ? (
+                                    <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.07] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+                                      Meets targets
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full border border-rose-300/10 bg-rose-300/[0.05] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-rose-300/80">
+                                      Misses targets
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-mono text-sm text-slate-300">
+                                  {item.latency.ttft_p95_ms.toFixed(0)}
+                                  <span className="ml-1 text-xs text-slate-600">ms</span>
+                                </span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-[#1b2430]">
+                                <div
+                                  className={
+                                    "h-full rounded-full transition-all " +
+                                    (item.meets_targets
+                                      ? "bg-gradient-to-r from-cyan-400 to-emerald-300"
+                                      : "bg-gradient-to-r from-indigo-500 to-sky-400")
+                                  }
+                                  style={{ width: width + "%" }}
+                                />
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500">
+                                <span>E2E p95 {item.latency.e2e_p95_seconds.toFixed(2)} sec</span>
+                                <span>Queue p95 {item.latency.scheduling_delay_p95_ms.toFixed(0)} ms</span>
+                                <span>Run {item.run}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-6 rounded-xl border border-dashed border-white/[0.1] px-5 py-8 text-center">
+                        <Database className="mx-auto h-5 w-5 text-slate-600" />
+                        <p className="mt-3 text-sm font-medium text-slate-300">
+                          No capacity profiles yet
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Run Vidur with two or more replica counts to compare capacity.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <p className="mt-4 text-xs leading-5 text-slate-500">
-                    Targets: TTFT ≤ {recommendation.targets.ttft_p95_ms} ms · E2E ≤ {recommendation.targets.e2e_p95_seconds} sec · queue delay ≤ {recommendation.targets.scheduling_delay_p95_ms} ms. {recommendation.hardware_note}
+                  <div className="rounded-2xl border border-cyan-300/[0.12] bg-gradient-to-b from-[#10202b] to-[#0d131b] p-5 md:p-6">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-cyan-300">
+                          <SlidersHorizontal className="h-4 w-4" />
+                          <p className="text-[10px] font-bold uppercase tracking-[0.17em]">
+                            Latency objectives
+                          </p>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          Set the limits your service should meet.
+                        </p>
+                      </div>
+                      <Sparkles className="h-4 w-4 text-cyan-300/50" />
+                    </div>
+
+                    <form className="mt-5 space-y-3" onSubmit={applyTargets}>
+                      <label className="block">
+                        <span className="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                          TTFT p95
+                          <span className="font-mono text-[10px] text-slate-600">milliseconds</span>
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-white/[0.08] bg-[#080c12] px-3.5 py-2.5 font-mono text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10"
+                          type="number"
+                          min="1"
+                          step="10"
+                          required
+                          value={targetDraft.ttft_p95_ms}
+                          onChange={(event) =>
+                            setTargetDraft({
+                              ...targetDraft,
+                              ttft_p95_ms: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                          End-to-end p95
+                          <span className="font-mono text-[10px] text-slate-600">seconds</span>
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-white/[0.08] bg-[#080c12] px-3.5 py-2.5 font-mono text-sm text-white outline-none transition focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10"
+                          type="number"
+                          min="0.1"
+                          step="0.5"
+                          required
+                          value={targetDraft.e2e_p95_seconds}
+                          onChange={(event) =>
+                            setTargetDraft({
+                              ...targetDraft,
+                              e2e_p95_seconds: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                          Queue delay p95
+                          <span className="font-mono text-[10px] text-slate-600">milliseconds</span>
+                        </span>
+                        <input
+                          className="w-full rounded-xl border border-white/[0.08] bg-[#080c12] px-3.5 py-2.5 font-mono text-sm text-white outline-none transition focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10"
+                          type="number"
+                          min="1"
+                          step="10"
+                          required
+                          value={targetDraft.scheduling_delay_p95_ms}
+                          onChange={(event) =>
+                            setTargetDraft({
+                              ...targetDraft,
+                              scheduling_delay_p95_ms: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-[#061018] transition hover:bg-cyan-200"
+                      >
+                        Recalculate recommendation
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </form>
+
+                    <div className="mt-5 border-t border-white/[0.08] pt-5">
+                      {recommendation.recommendation ? (
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-300/10 text-emerald-300">
+                            <Server className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                              Lowest passing profile
+                            </p>
+                            <p className="mt-1 text-lg font-semibold text-white">
+                              {recommendation.recommendation.replicas} replicas
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-medium text-amber-200">
+                          No tested profile meets all three limits.
+                        </p>
+                      )}
+                      <p className="mt-3 text-[10px] leading-5 text-slate-500">
+                        This is an offline Vidur estimate, not a physical GPU measurement.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-white/[0.1] bg-[#0e131c]/70 px-6 py-10 text-center">
+                  <Gauge className="mx-auto h-6 w-6 text-slate-600" />
+                  <p className="mt-3 text-sm font-medium text-slate-300">
+                    Run a Vidur study to unlock capacity planning
                   </p>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <p className="text-sm text-slate-400">
-              Run Vidur and save profiles to see a recommendation. The dashboard stays available without them.
-            </p>
-          )}
-        </section>
+                  <p className="mt-1 text-xs text-slate-500">
+                    The dashboard continues to work without saved Vidur profiles.
+                  </p>
+                </div>
+              )}
+            </section>
 
-        <section className="mt-8">
-          <h2 className="mb-2 text-lg font-semibold text-white">
-            Replica comparison
-          </h2>
+            <section id="workers" className="mt-12 scroll-mt-24">
+              <SectionHeading
+                eyebrow="Live simulated runtime"
+                title="Worker pools"
+                detail="These are the topology values currently held by the CPU simulator. They are separate logical stages, not separate model servers."
+              />
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 md:p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-300/[0.08] text-sky-300">
+                        <Layers3 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">Prefill pool</h3>
+                        <p className="mt-1 text-xs text-slate-500">Prompt processing stage</p>
+                      </div>
+                    </div>
+                    <span className="rounded-lg border border-sky-300/10 bg-sky-300/[0.05] px-2.5 py-1 text-[10px] font-semibold text-sky-200">
+                      COMPUTE MODEL
+                    </span>
+                  </div>
+                  <div className="mt-6 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Replicas</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{state?.prefill_replicas ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Batch size</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{state?.prefill_batch_size ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Queue</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{topology?.queues.prefill ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-sky-300"
+                      style={{
+                        width:
+                          state && state.prefill_replicas > 0
+                            ? Math.min(
+                                100,
+                                (topology!.queues.prefill /
+                                  (state.prefill_replicas *
+                                    state.prefill_batch_size)) *
+                                  100,
+                              ) + "%"
+                            : "0%",
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-600">
+                    Queue pressure relative to configured batch capacity
+                  </p>
+                </div>
 
-          {comparison?.same_workload ? (
-            <>
-              <p className="mb-4 text-sm text-slate-400">
-                {comparison.baseline.replicas} replica
-                {comparison.baseline.replicas === 1 ? "" : "s"} vs{" "}
-                {comparison.candidate.replicas} replicas. Same workload
-                settings.
-              </p>
+                <div className="rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 md:p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-300/[0.08] text-violet-300">
+                        <Zap className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">Decode pool</h3>
+                        <p className="mt-1 text-xs text-slate-500">Token generation stage</p>
+                      </div>
+                    </div>
+                    <span className="rounded-lg border border-violet-300/10 bg-violet-300/[0.05] px-2.5 py-1 text-[10px] font-semibold text-violet-200">
+                      MEMORY MODEL
+                    </span>
+                  </div>
+                  <div className="mt-6 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Replicas</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{state?.decode_replicas ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Batch size</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{state?.decode_batch_size ?? "—"}</p>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.025] p-3">
+                      <p className="text-[10px] text-slate-600">Queue</p>
+                      <p className="mt-2 text-xl font-semibold text-white">{topology?.queues.decode ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-violet-300"
+                      style={{
+                        width:
+                          state && state.decode_replicas > 0
+                            ? Math.min(
+                                100,
+                                (topology!.queues.decode /
+                                  (state.decode_replicas *
+                                    state.decode_batch_size)) *
+                                  100,
+                              ) + "%"
+                            : "0%",
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-600">
+                    Queue pressure relative to configured batch capacity
+                  </p>
+                </div>
+              </div>
+            </section>
 
-              <Card className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-slate-800 text-slate-400">
-                    <tr>
-                      <th className="p-4">Metric</th>
-                      <th className="p-4">Baseline</th>
-                      <th className="p-4">Candidate</th>
-                      <th className="p-4">Change</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisonRows.map((row) => {
-                      const change =
-                        row.baseline === 0
-                          ? null
-                          : ((row.baseline - row.candidate) / row.baseline) *
-                            100;
-                      const changeLabel =
-                        change === null
-                          ? "—"
-                          : change >= 0
-                            ? `${change.toFixed(1)}% lower`
-                            : `${Math.abs(change).toFixed(1)}% higher`;
+            <section
+              id="controller"
+              className="mt-12 grid scroll-mt-24 gap-5 xl:grid-cols-[0.8fr_1.2fr]"
+            >
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 md:p-6">
+                <SectionHeading
+                  eyebrow="Autonomous policy loop"
+                  title="Controller state"
+                  detail="Rules inspect simulated queue and cache counts."
+                />
+                <div className="rounded-xl border border-indigo-300/10 bg-indigo-300/[0.04] p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-300/10 text-indigo-200">
+                      <BrainCircuit className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Last decision
+                      </p>
+                      <p className="mt-1 font-semibold capitalize text-indigo-100">
+                        {topology?.last_controller_decision?.replaceAll(
+                          "_",
+                          " ",
+                        ) ?? "Waiting for data"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between rounded-xl bg-white/[0.025] px-3.5 py-3">
+                    <span className="flex items-center gap-2 text-xs text-slate-400">
+                      <Database className="h-3.5 w-3.5 text-emerald-300" />
+                      Aggressive prefix cache
+                    </span>
+                    <span className={state?.aggressive_prefix_cache ? "text-xs font-semibold text-emerald-300" : "text-xs text-slate-600"}>
+                      {state?.aggressive_prefix_cache ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-white/[0.025] px-3.5 py-3">
+                    <span className="flex items-center gap-2 text-xs text-slate-400">
+                      <Sparkles className="h-3.5 w-3.5 text-violet-300" />
+                      Speculative decode flag
+                    </span>
+                    <span className={state?.speculative_decoding ? "text-xs font-semibold text-violet-300" : "text-xs text-slate-600"}>
+                      {state?.speculative_decoding ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-4 text-[10px] leading-5 text-slate-600">
+                  The switches show simulated controller state. They do not enable model kernels in this CPU demo.
+                </p>
+              </div>
 
-                      return (
-                        <tr
-                          key={row.label}
-                          className="border-b border-slate-800"
-                        >
-                          <td className="p-4 font-medium text-white">
-                            {row.label}
-                          </td>
-                          <td className="p-4 text-slate-300">
-                            {row.baseline.toFixed(2)} {row.unit}
-                          </td>
-                          <td className="p-4 text-slate-300">
-                            {row.candidate.toFixed(2)} {row.unit}
-                          </td>
-                          <td
-                            className={`p-4 ${
-                              change === null
-                                ? "text-slate-400"
-                                : change >= 0
-                                  ? "text-emerald-300"
-                                  : "text-rose-300"
-                            }`}
+              <div className="rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5 md:p-6">
+                <SectionHeading
+                  eyebrow="Experiment comparison"
+                  title="Before and after"
+                  detail="Compare the most recent two saved profiles when their workload settings match."
+                />
+                {comparison?.same_workload ? (
+                  <>
+                    <div className="mb-4 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                      <span className="rounded-lg bg-white/[0.03] px-2.5 py-1.5">
+                        {comparison.baseline.replicas} → {comparison.candidate.replicas} replicas
+                      </span>
+                      <span className="rounded-lg bg-white/[0.03] px-2.5 py-1.5">
+                        {comparison.baseline.qps} QPS
+                      </span>
+                      <span className="rounded-lg bg-white/[0.03] px-2.5 py-1.5">
+                        {comparison.baseline.request_count} requests
+                      </span>
+                    </div>
+                    <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+                      {comparisonRows.map((row) => {
+                        const reduction =
+                          row.baseline === 0
+                            ? null
+                            : ((row.baseline - row.candidate) /
+                                row.baseline) *
+                              100;
+                        return (
+                          <div
+                            key={row.label}
+                            className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-white/[0.05] px-3.5 py-3 last:border-b-0 sm:grid-cols-[1fr_110px_110px_100px]"
                           >
-                            {changeLabel}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </Card>
-              <p className="mt-3 text-xs text-slate-500">
-                Baseline run: {comparison.baseline_run} · Candidate run:{" "}
-                {comparison.candidate_run}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-amber-300">
-              {comparison
-                ? "The workloads differ, so these results are not a fair replica comparison."
-                : "Loading the comparison…"}
-            </p>
-          )}
-        </section>
-
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <BrainCircuit className="h-5 w-5 text-violet-300" />
-                <h2 className="font-semibold text-white">
-                  What Hyperion decided
-                </h2>
+                            <span className="text-xs text-slate-400">{row.label}</span>
+                            <span className="text-right font-mono text-xs text-slate-500">
+                              {row.baseline.toFixed(2)} {row.unit}
+                            </span>
+                            <span className="text-right font-mono text-xs text-slate-200">
+                              {row.candidate.toFixed(2)} {row.unit}
+                            </span>
+                            <span
+                              className={
+                                "col-span-3 text-right text-[10px] font-semibold sm:col-span-1 " +
+                                (reduction !== null && reduction >= 0
+                                  ? "text-emerald-300"
+                                  : "text-rose-300")
+                              }
+                            >
+                              {reduction === null
+                                ? "—"
+                                : reduction >= 0
+                                  ? reduction.toFixed(1) + "% lower"
+                                  : Math.abs(reduction).toFixed(1) + "% higher"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-[10px] text-slate-600">
+                      {comparison.baseline_run} → {comparison.candidate_run}
+                    </p>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-white/[0.1] px-4 py-8 text-center text-xs text-slate-500">
+                    {comparison
+                      ? "The latest profiles use different workloads. Run a matching pair to compare fairly."
+                      : "Save at least two Vidur profiles to see a comparison."}
+                  </div>
+                )}
               </div>
-            </CardHeader>
+            </section>
 
-            <CardContent>
-              <p className="text-2xl font-bold capitalize text-indigo-200">
-                {topology?.last_controller_decision?.replaceAll("_", " ") ??
-                  "Waiting for data"}
-              </p>
-
-              <p className="mt-3 leading-7 text-slate-400">
-                {topology?.last_controller_decision === "scale_decode"
-                  ? "Many requests were generating answers together, so Hyperion added a Decode worker."
-                  : "Hyperion is watching request pressure, cache reuse, and worker capacity. With light traffic, one worker per stage is enough."}
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Badge
-                  className={
-                    state?.aggressive_prefix_cache
-                      ? ""
-                      : "border-slate-700 bg-slate-800 text-slate-300"
-                  }
-                >
-                  Prefix cache:{" "}
-                  {state?.aggressive_prefix_cache ? "aggressive" : "normal"}
-                </Badge>
-
-                <Badge
-                  className={
-                    state?.speculative_decoding
-                      ? ""
-                      : "border-slate-700 bg-slate-800 text-slate-300"
-                  }
-                >
-                  Speculative decoding:{" "}
-                  {state?.speculative_decoding ? "on" : "off"}
-                </Badge>
+            <section id="request-path" className="mt-12 scroll-mt-24">
+              <SectionHeading
+                eyebrow="Request lifecycle"
+                title="One request, four stages"
+                detail="This diagram describes the simulator's logical request path."
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    step: "01",
+                    title: "Gateway",
+                    text: "Validates an OpenAI-shaped request and records timing.",
+                    icon: Network,
+                    color: "text-cyan-300",
+                  },
+                  {
+                    step: "02",
+                    title: "Prefill",
+                    text: "Models processing the prompt and checks prefix reuse.",
+                    icon: Layers3,
+                    color: "text-sky-300",
+                  },
+                  {
+                    step: "03",
+                    title: "KV cache",
+                    text: "Keeps a small in-memory record for shared prefixes.",
+                    icon: Database,
+                    color: "text-emerald-300",
+                  },
+                  {
+                    step: "04",
+                    title: "Decode",
+                    text: "Models token generation and reports queue pressure.",
+                    icon: Zap,
+                    color: "text-violet-300",
+                  },
+                ].map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.step}
+                      className="relative rounded-2xl border border-white/[0.07] bg-[#0e131c] p-5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] text-slate-600">
+                          {item.step}
+                        </span>
+                        <Icon className={"h-4 w-4 " + item.color} />
+                      </div>
+                      <h3 className="mt-5 text-sm font-semibold text-white">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        {item.text}
+                      </p>
+                      {index < 3 && (
+                        <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 rounded-full border border-white/[0.08] bg-[#0e131c] p-0.5 text-slate-500 xl:block" />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </CardContent>
-          </Card>
+            </section>
 
-          <Card className="border-indigo-500/30 bg-indigo-500/5">
-            <CardHeader>
-              <h2 className="font-semibold text-white">
-                Try the scaling demo
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Send fake traffic through the simulator. No model or GPU is
-                required.
-              </p>
-            </CardHeader>
-
-            <CardContent>
-              <Button
-                disabled={loading}
-                onClick={runDemo}
-                className="w-full gap-2"
-              >
-                <Play className="h-4 w-4" />
-                {loading ? "Running traffic burst…" : "Send 12 fake requests"}
-              </Button>
-
-              <p className="mt-4 text-xs leading-5 text-slate-500">
-                The controller watches the burst and may increase the simulated
-                Decode worker count.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="mt-6">
-          <h2 className="mb-3 text-lg font-semibold text-white">
-            How one request travels through Hyperion
-          </h2>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            {[
-              ["1", "Gateway", "Receives a chat request."],
-              ["2", "Prefill", "Reads and processes the prompt."],
-              ["3", "KV cache", "Can reuse shared prompt context."],
-              ["4", "Decode", "Generates the answer token by token."],
-            ].map(([number, title, description], index) => (
-              <Card key={title}>
-                <CardContent className="pt-5">
-                  <p className="text-sm text-indigo-300">Step {number}</p>
-                  <h3 className="mt-1 font-semibold text-white">{title}</h3>
-                  <p className="mt-2 text-sm text-slate-400">{description}</p>
-
-                  {index < 3 && (
-                    <ArrowRight className="mt-3 hidden h-4 w-4 text-slate-600 md:block" />
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+            <footer className="mt-12 flex flex-col justify-between gap-3 border-t border-white/[0.07] pt-5 text-[10px] text-slate-600 sm:flex-row sm:items-center">
+              <span>Hyperion · Local inference systems lab</span>
+              <span className="flex items-center gap-2">
+                <Timer className="h-3.5 w-3.5" />
+                Topology refreshes every 3 seconds
+                <span className="mx-1 h-1 w-1 rounded-full bg-slate-700" />
+                <span className="flex items-center gap-1">
+                  <Gauge className="h-3.5 w-3.5" />
+                  Vidur results are estimates
+                </span>
+              </span>
+            </footer>
           </div>
-        </section>
-
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="pt-5">
-              <Activity className="h-5 w-5 text-emerald-300" />
-              <h3 className="mt-3 font-semibold">What you can try</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Click “Send 12 fake requests” and watch the topology and
-                controller decision.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-5">
-              <Database className="h-5 w-5 text-amber-300" />
-              <h3 className="mt-3 font-semibold">Why the cache matters</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Repeated system prompts can reuse cached context instead of
-                processing that shared part from scratch.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-5">
-              <BrainCircuit className="h-5 w-5 text-violet-300" />
-              <h3 className="mt-3 font-semibold">What Vidur adds</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Vidur estimates performance using GPU profiles. The results
-                shown above come from your saved experiment.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
+        </div>
       </div>
     </main>
   );
