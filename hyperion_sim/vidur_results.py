@@ -54,13 +54,22 @@ def build_profile(rows: list[dict[str, str]], config: dict) -> dict:
         "request_count": len(rows),
         "prompt_tokens": int(rows[0]["request_num_prefill_tokens"]),
         "output_tokens": int(rows[0]["request_num_decode_tokens"]),
+        "configuration": {
+            "pipeline_parallel": cluster["replica_config"].get("num_pipeline_stages", 1),
+            "tensor_parallel": cluster["replica_config"].get("tensor_parallel_size", 1),
+            "scheduler": cluster.get("replica_scheduler_config", {}).get("name", "unknown"),
+            "chunk_size": cluster.get("replica_scheduler_config", {}).get("chunk_size"),
+            "batch_size": cluster.get("replica_scheduler_config", {}).get("batch_size_cap"),
+        },
         "latency": {
             "ttft_p50_ms": round(percentile(ttft, 50) * 1000, 2),
+            "ttft_p90_ms": round(percentile(ttft, 90) * 1000, 2),
             "ttft_p95_ms": round(percentile(ttft, 95) * 1000, 2),
             "e2e_p50_seconds": round(percentile(e2e, 50), 3),
             "e2e_p95_seconds": round(percentile(e2e, 95), 3),
             "tpot_p50_ms": round(percentile(tpot, 50) * 1000, 2),
             "tpot_p95_ms": round(percentile(tpot, 95) * 1000, 2),
+            "tpot_p99_ms": round(percentile(tpot, 99) * 1000, 2),
             "scheduling_delay_p95_ms": round(
                 percentile(scheduling_delay, 95) * 1000, 2
             ),
