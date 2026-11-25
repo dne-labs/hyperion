@@ -8,5 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir .
 
-WORKDIR /workspace
-ENTRYPOINT ["python", "-m", "hyperion_sim.vidur_runner"]
+RUN python -c "import vidur; print('Vidur installed at:', vidur.__file__)"
+
+RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
+
+ENV BROWSER_PATH=/usr/bin/chromium
+
+WORKDIR /opt/vidur
+
+ENV PYTHONPATH=/opt/vidur
+
+ENTRYPOINT ["python", "/workspace/hyperion_sim/vidur_runner.py"]

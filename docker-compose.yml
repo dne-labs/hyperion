@@ -43,4 +43,12 @@ services:
       context: .
       dockerfile: Dockerfile.vidur
     profiles: ["vidur"]
-    volumes: [".:/workspace"]
+    cpus: 2.0
+    environment:
+      OMP_NUM_THREADS: 2
+      OPENBLAS_NUM_THREADS: 2
+      MKL_NUM_THREADS: 2
+      NUMEXPR_NUM_THREADS: 2
+    volumes:
+      - .:/workspace
+      - ./simulator_output:/opt/vidur/simulator_output
