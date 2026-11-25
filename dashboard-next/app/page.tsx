@@ -138,7 +138,8 @@ export default function Home() {
         body: JSON.stringify({
           qps: Number(form.qps), requests: Number(form.requests),
           prompt_tokens: Number(form.prompt), output_tokens: Number(form.output),
-          batch_size: Number(form.batch), scheduler: form.scheduler,\n          pipeline_parallel: Number(form.pp), tensor_parallel: Number(form.tp),
+          batch_size: Number(form.batch), scheduler: form.scheduler,
+          pipeline_parallel: Number(form.pp), tensor_parallel: Number(form.tp),
           chunk_size: Number(form.chunk), alternate_chunk_size: Number(form.alternate),
           replicas: [1,2,4],
         }),
