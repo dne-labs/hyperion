@@ -59,6 +59,9 @@ def command_for(args: SweepRequest, replicas: int, chunk_size: int) -> list[str]
         "--random_forrest_execution_time_predictor_config_num_estimators", "250",
         "--random_forrest_execution_time_predictor_config_max_depth", "16",
         "--random_forrest_execution_time_predictor_config_min_samples_split", "2",
+        "--random_forrest_execution_time_predictor_config_prediction_max_prefill_chunk_size", str(max(4096, args.prompt_tokens)),
+        "--random_forrest_execution_time_predictor_config_prediction_max_batch_size", str(max(128, args.batch_size)),
+        "--random_forrest_execution_time_predictor_config_prediction_max_tokens_per_request", str(max(4096, args.prompt_tokens + args.output_tokens)),
         "--no-metrics_config_store_plots",
         "--no-metrics_config_enable_chrome_trace",
     ]
@@ -159,6 +162,10 @@ async def sweep(request: SweepRequest) -> dict:
     replicas = sorted(set(request.replicas))
     if not replicas or any(value not in (1, 2, 4) for value in replicas):
         raise HTTPException(422, "Choose one or more tested replica counts: 1, 2, or 4.")
+    if request.pipeline_parallel * request.tensor_parallel > 4:
+        raise HTTPException(422, "The selected PP × TP dimensions exceed the A100 pairwise profile’s 4 GPUs per replica.")
+    if request.prompt_tokens + request.output_tokens > 8192:
+        raise HTTPException(422, "Prompt plus output length must be 8192 tokens or less.")
     candidates: list[tuple[int, int]] = [
         (replica_count, request.chunk_size) for replica_count in replicas
     ]
