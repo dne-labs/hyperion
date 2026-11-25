@@ -41,8 +41,13 @@ function Scatter({
   const y = (n: number) => T + PH - (n / yMax) * PH;
   const ratios = [0, .25, .5, .75, 1];
   return <svg viewBox={"0 0 " + W + " " + H} className="plot" role="img" aria-label={yLabel + " by " + xLabel}>
-    {xLimit !== undefined && <rect x={L} y={T} width={Math.max(0, x(xLimit) - L)} height={PH} fill="#dff1e5" />}
-    {yLimit !== undefined && <rect x={L} y={y(yLimit)} width={PW} height={T + PH - y(yLimit)} fill="#dff1e5" opacity=".6" />}
+    {xLimit !== undefined && yLimit !== undefined
+      ? <rect x={L} y={y(yLimit)} width={Math.max(0, x(xLimit) - L)} height={T + PH - y(yLimit)} fill="#dff1e5" opacity=".78" />
+      : xLimit !== undefined
+        ? <rect x={L} y={T} width={Math.max(0, x(xLimit) - L)} height={PH} fill="#dff1e5" opacity=".78" />
+        : yLimit !== undefined
+          ? <rect x={L} y={y(yLimit)} width={PW} height={T + PH - y(yLimit)} fill="#dff1e5" opacity=".6" />
+          : null}
     {ratios.map((r) => <g key={r}><line x1={L} x2={L + PW} y1={T + PH * (1 - r)} y2={T + PH * (1 - r)} stroke="#e4eaed" /><line x1={L + PW * r} x2={L + PW * r} y1={T} y2={T + PH} stroke="#e9eef0" /><text x={L - 8} y={T + PH * (1 - r) + 4} textAnchor="end" className="plot-tick">{(yMax * r).toFixed(2)}</text><text x={L + PW * r} y={T + PH + 17} textAnchor="middle" className="plot-tick">{(xMax * r).toFixed(2)}</text></g>)}
     {xLimit !== undefined && <line x1={x(xLimit)} x2={x(xLimit)} y1={T} y2={T + PH} stroke="#ef5350" strokeWidth="1.5" />}
     {yLimit !== undefined && <line x1={L} x2={L + PW} y1={y(yLimit)} y2={y(yLimit)} stroke="#ef5350" strokeWidth="1.5" />}
