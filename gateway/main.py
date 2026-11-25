@@ -104,7 +104,7 @@ async def metrics() -> Response:
             upstream = await client.get(f"{backend_url}/metrics")
         if upstream.is_success:
             return Response(
-                content=local_metrics.body + b"\\n" + upstream.content,
+                content=local_metrics.body + b"\n" + upstream.content,
                 media_type=local_metrics.media_type,
             )
     except httpx.HTTPError:
