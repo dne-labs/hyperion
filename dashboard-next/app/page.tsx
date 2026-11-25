@@ -58,6 +58,44 @@ type ProfileComparison = {
   candidate: VidurProfile;
 };
 
+type VidurRecommendation = {
+  workload: {
+    model: string;
+    gpu_profile: string;
+    qps: number;
+    request_count: number;
+    prompt_tokens: number;
+    output_tokens: number;
+  };
+  targets: {
+    ttft_p95_ms: number;
+    e2e_p95_seconds: number;
+    scheduling_delay_p95_ms: number;
+  };
+  tested_profiles: Array<{
+    run: string;
+    replicas: number;
+    meets_targets: boolean;
+    latency: {
+      ttft_p95_ms: number;
+      e2e_p95_seconds: number;
+      scheduling_delay_p95_ms: number;
+    };
+    failed_targets: string[];
+  }>;
+  recommendation: {
+    run: string;
+    replicas: number;
+    latency: {
+      ttft_p95_ms: number;
+      e2e_p95_seconds: number;
+      scheduling_delay_p95_ms: number;
+    };
+  } | null;
+  message: string;
+  hardware_note: string;
+};
+
 const gateway =
   process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8000";
 
@@ -91,40 +129,47 @@ export default function Home() {
   const [topology, setTopology] = useState<Topology | null>(null);
   const [profile, setProfile] = useState<VidurProfile | null>(null);
   const [comparison, setComparison] = useState<ProfileComparison | null>(null);
+  const [recommendation, setRecommendation] =
+    useState<VidurRecommendation | null>(null);
   const [status, setStatus] = useState("Waiting for the gateway…");
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      // Fetch live topology and the saved Vidur profile at the same time.
-      const [topologyResponse, profileResponse, comparisonResponse] =
-        await Promise.all([
-          fetch(`${gateway}/topology`),
-          fetch(`${gateway}/vidur-profile`),
-          fetch(`${gateway}/vidur-comparison`),
-        ]);
-
-      if (
-        !topologyResponse.ok ||
-        !profileResponse.ok ||
-        !comparisonResponse.ok
-      ) {
-        throw new Error("A Gateway request failed");
+      // Topology is the live service state. Vidur profiles are optional until a
+      // capacity study has been run, so a missing profile must not mark the
+      // whole Gateway as offline.
+      const topologyResponse = await fetch(`${gateway}/topology`);
+      if (!topologyResponse.ok) {
+        throw new Error("Gateway topology request failed");
       }
 
-      const topologyData: Topology = await topologyResponse.json();
-      const profileData: VidurProfile = await profileResponse.json();
-      const comparisonData: ProfileComparison =
-        await comparisonResponse.json();
+      const [profileData, comparisonData, recommendationData] =
+        await Promise.all(
+          [
+            `${gateway}/vidur-profile`,
+            `${gateway}/vidur-comparison`,
+            `${gateway}/vidur-recommendation`,
+          ].map(async (url) => {
+            try {
+              const response = await fetch(url);
+              return response.ok ? await response.json() : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
 
+      const topologyData: Topology = await topologyResponse.json();
       setTopology(topologyData);
       setProfile(profileData);
       setComparison(comparisonData);
+      setRecommendation(recommendationData);
       setStatus("Connected — updates every 2 seconds");
     } catch {
-      setStatus("Gateway or Vidur profile is unavailable");
+      setStatus("Gateway is offline. Start Docker Compose to reconnect.");
     }
-  }, []);
+  };
 
   useEffect(() => {
     void refresh();
@@ -328,6 +373,72 @@ export default function Home() {
               Workload: {profile.prompt_tokens} prompt tokens and{" "}
               {profile.output_tokens} output tokens per request. These are
               simulated hardware-profile results.
+            </p>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <h2 className="mb-2 text-lg font-semibold text-white">
+            Replica recommendation
+          </h2>
+          {recommendation ? (
+            <>
+              <p className="mb-4 text-sm text-slate-400">
+                {recommendation.workload.model} · {recommendation.workload.qps} QPS · {recommendation.workload.request_count} requests. Hyperion checks the saved runs for the latest workload.
+              </p>
+              <Card>
+                <CardContent className="pt-5">
+                  {recommendation.recommendation ? (
+                    <>
+                      <p className="text-xl font-bold text-emerald-300">
+                        Recommended: {recommendation.recommendation.replicas} replica(s)
+                      </p>
+                      <p className="mt-2 text-sm text-slate-400">
+                        This is the smallest tested replica count meeting the configured latency targets.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-semibold text-amber-300">
+                      No tested replica count meets all configured targets.
+                    </p>
+                  )}
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="border-b border-slate-800 text-slate-400">
+                        <tr>
+                          <th className="p-3">Replicas</th>
+                          <th className="p-3">TTFT p95</th>
+                          <th className="p-3">E2E p95</th>
+                          <th className="p-3">Queue delay p95</th>
+                          <th className="p-3">Targets</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recommendation.tested_profiles.map((item) => (
+                          <tr key={item.run} className="border-b border-slate-800">
+                            <td className="p-3">{item.replicas}</td>
+                            <td className="p-3">{item.latency.ttft_p95_ms.toFixed(2)} ms</td>
+                            <td className="p-3">{item.latency.e2e_p95_seconds.toFixed(2)} sec</td>
+                            <td className="p-3">{item.latency.scheduling_delay_p95_ms.toFixed(2)} ms</td>
+                            <td className={item.meets_targets ? "p-3 text-emerald-300" : "p-3 text-rose-300"}>
+                              {item.meets_targets ? "Pass" : "Does not pass"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="mt-4 text-xs leading-5 text-slate-500">
+                    Targets: TTFT ≤ {recommendation.targets.ttft_p95_ms} ms · E2E ≤ {recommendation.targets.e2e_p95_seconds} sec · queue delay ≤ {recommendation.targets.scheduling_delay_p95_ms} ms. {recommendation.hardware_note}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              Run Vidur and save profiles to see a recommendation. The dashboard stays available without them.
             </p>
           )}
         </section>
