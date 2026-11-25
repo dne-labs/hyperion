@@ -5,6 +5,7 @@ from pathlib import Path
 import math
 import json
 from pathlib import Path
+import argparse
 
 
 def load_request_metrics(path: Path) -> list[dict[str, str]]:
@@ -66,10 +67,34 @@ def build_profile(rows: list[dict[str, str]], config: dict) -> dict:
         },
     }
 
+def latest_run_dir(root: Path = Path("simulator_output")) -> Path:
+    run_dirs = [
+        path
+        for path in root.iterdir()
+        if path.is_dir() and (path / "request_metrics.csv").is_file()
+    ]
+
+    if not run_dirs:
+        raise FileNotFoundError(
+            f"No Vidur request_metrics.csv files found under {root}"
+        )
+
+    # Vidur folder names begin with sortable timestamps.
+    return max(run_dirs, key=lambda path: path.name)
+
+
+
 if __name__ == "__main__":
-    metrics_path = Path(
-        "simulator_output/2026-11-24_17-14-09-618128/request_metrics.csv"
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        help="Vidur run folder to process; defaults to the newest run",
     )
+    args = parser.parse_args()
+
+    run_dir = args.run_dir or latest_run_dir()
+    metrics_path = run_dir / "request_metrics.csv"
     rows = load_request_metrics(metrics_path)
 
     ttft = column_as_floats(rows, "prefill_e2e_time")

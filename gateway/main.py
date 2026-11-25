@@ -122,6 +122,48 @@ async def chat(request: ChatRequest) -> dict:
         "hyperion": outcome.as_dict() | {"e2e_seconds": round(total, 4)},
     }
 
+@app.get("/vidur-comparison")
+async def get_vidur_comparison() -> dict:
+    project_root = Path(__file__).resolve().parents[1]
+    output_dir = project_root / "simulator_output"
+
+    profile_paths = sorted(
+        output_dir.glob("*/hyperion_profile.json")
+    )
+
+    if len(profile_paths) < 2:
+        raise HTTPException(
+            status_code=404,
+            detail="Need at least two saved Vidur profiles to compare.",
+        )
+
+    baseline_path = profile_paths[-2]
+    candidate_path = profile_paths[-1]
+
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+
+    # A comparison is fair only if the workload settings match.
+    workload_fields = (
+        "model",
+        "gpu_profile",
+        "qps",
+        "request_count",
+        "prompt_tokens",
+        "output_tokens",
+    )
+    same_workload = all(
+        baseline[field] == candidate[field]
+        for field in workload_fields
+    )
+
+    return {
+        "baseline_run": baseline_path.parent.name,
+        "candidate_run": candidate_path.parent.name,
+        "same_workload": same_workload,
+        "baseline": baseline,
+        "candidate": candidate,
+    }
 
 @app.post("/demo/load")
 async def demo_load(request: LoadRequest) -> dict:
