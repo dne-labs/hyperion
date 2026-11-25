@@ -67,6 +67,19 @@ docker compose --profile vidur run --rm vidur --qps 4 --requests 128
 
 The first run downloads the Vidur image dependencies. The runner writes a reproducible command and scenario metadata under `simulator_output/`. For exact model/device profiles, use the supported Vidur model/device combinations described in its README.
 
+## Recommend a replica count
+
+After processing each Vidur run with `hyperion_sim.vidur_results`, compare profiles for the same workload and ask the script to select the fewest replicas that meet the latency targets:
+
+```bash
+python -m hyperion_sim.recommend_replicas \
+  simulator_output/<one-replica-run> \
+  simulator_output/<two-replica-run> \
+  simulator_output/<four-replica-run>
+```
+
+Replace those example directory names with the folders containing each run's `hyperion_profile.json`. By default, the script uses example targets of TTFT p95 <= 600 ms, E2E p95 <= 10 seconds, and scheduling-delay p95 <= 400 ms. You can set different limits with `--max-ttft-p95-ms`, `--max-e2e-p95-seconds`, and `--max-scheduling-delay-p95-ms`. These are lab settings, not production SLOs. The script rejects profiles whose workload settings do not match.
+
 ## Controller policy
 
 Every 10 seconds the controller observes queue depth, p95 TTFT, token latency, and cache hit rate.
