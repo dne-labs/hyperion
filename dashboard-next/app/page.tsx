@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, ArrowDownRight, Check, ChevronDown, CircleHelp, Cpu, Gauge, Layers3, Play, RefreshCw, Server, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
+import { Activity, ArrowDownRight, Check, ChevronDown, CircleHelp, Cpu, Gauge, Layers3, Play, RefreshCw, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
 
 const gateway = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8000";
 type Run = {
@@ -13,10 +13,10 @@ type Run = {
 };
 type FormState = {
   qps: string; requests: string; prompt: string; output: string; batch: string;
-  scheduler: "sarathi" | "vllm"; chunk: string; alternate: string; cost: string;
+  scheduler: "sarathi" | "vllm"; chunk: string; alternate: string; cost: string; pp: string; tp: string;
   ttftSlo: string; tpotSlo: string;
 };
-const defaults: FormState = { qps: "4", requests: "32", prompt: "2048", output: "512", batch: "128", scheduler: "sarathi", chunk: "512", alternate: "256", cost: "20", ttftSlo: "2.0", tpotSlo: "0.20" };
+const defaults: FormState = { qps: "4", requests: "32", prompt: "2048", output: "512", batch: "128", scheduler: "sarathi", chunk: "512", alternate: "256", cost: "20", pp: "1", tp: "1", ttftSlo: "2.0", tpotSlo: "0.20" };
 
 function MetricCard({ icon: Icon, label, value, hint }: { icon: typeof Cpu; label: string; value: string; hint: string }) {
   return <article className="metric-card"><div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><span className="metric-tag">VIDUR ESTIMATE</span></div><p className="metric-label">{label}</p><strong className="metric-value">{value}</strong><p className="metric-hint">{hint}</p></article>;
@@ -138,7 +138,7 @@ export default function Home() {
         body: JSON.stringify({
           qps: Number(form.qps), requests: Number(form.requests),
           prompt_tokens: Number(form.prompt), output_tokens: Number(form.output),
-          batch_size: Number(form.batch), scheduler: form.scheduler,
+          batch_size: Number(form.batch), scheduler: form.scheduler,\n          pipeline_parallel: Number(form.pp), tensor_parallel: Number(form.tp),
           chunk_size: Number(form.chunk), alternate_chunk_size: Number(form.alternate),
           replicas: [1,2,4],
         }),
@@ -175,7 +175,7 @@ export default function Home() {
         </div>
         <aside className="best-card">
           <div className="best-card-top"><span>BEST TESTED CONFIG</span><span className="estimate-badge"><i /> SIMULATION</span></div>
-          {best ? <><div className="best-score">{efficiency(best).toFixed(3)} <small>offered QPS / $·h</small></div><p className="subtle">using your editable GPU-hour cost assumption</p><div className="best-tags"><Pill>{best.replicas} replicas</Pill><Pill>{best.configuration?.scheduler || "Sarathi"}</Pill><Pill>chunk {best.configuration?.chunk_size ?? form.chunk}</Pill></div><div className="best-stats"><div><small>TTFT p90</small><b>{ttft(best).toFixed(2)} s</b></div><div><small>Token time p99</small><b>{tpot(best).toFixed(3)} s</b></div></div></> : <div className="best-empty"><h2>No passing config yet</h2><p>Set your latency limits and run a Vidur sweep. Hyperion will mark the best tested point that meets both limits.</p></div>}
+          {best ? <><div className="best-score">{efficiency(best).toFixed(3)} <small>offered QPS / $·h</small></div><p className="subtle">using your editable GPU-hour cost assumption</p><div className="best-tags"><Pill>{best.replicas} replicas</Pill><Pill>{best.configuration?.scheduler || "Sarathi"}</Pill><Pill>chunk {best.configuration?.chunk_size ?? form.chunk}</Pill><Pill>PP {best.configuration?.pipeline_parallel ?? 1} · TP {best.configuration?.tensor_parallel ?? 1}</Pill><Pill>batch {best.configuration?.batch_size ?? form.batch}</Pill><Pill>{best.gpu_profile}</Pill></div><div className="best-stats"><div><small>TTFT p90</small><b>{ttft(best).toFixed(2)} s</b></div><div><small>Token time p99</small><b>{tpot(best).toFixed(3)} s</b></div></div></> : <div className="best-empty"><h2>No passing config yet</h2><p>Set your latency limits and run a Vidur sweep. Hyperion will mark the best tested point that meets both limits.</p></div>}
         </aside>
       </section>
 
@@ -196,7 +196,7 @@ export default function Home() {
               <InputField label="Request count" suffix="requests" min={8} step="1" value={form.requests} onChange={(v) => set("requests",v)} />
               <InputField label="Prompt" suffix="tokens" min={32} step="1" value={form.prompt} onChange={(v) => set("prompt",v)} />
               <InputField label="Generated answer" suffix="tokens" min={8} step="1" value={form.output} onChange={(v) => set("output",v)} />
-              <InputField label="Batch size cap" suffix="requests" min={8} step="1" value={form.batch} onChange={(v) => set("batch",v)} />
+              <InputField label="Batch size cap" suffix="requests" min={8} step="1" value={form.batch} onChange={(v) => set("batch",v)} />\n              <InputField label="Pipeline parallel (PP)" suffix="stages" min={1} step="1" value={form.pp} onChange={(v) => set("pp",v)} />\n              <InputField label="Tensor parallel (TP)" suffix="GPUs" min={1} step="1" value={form.tp} onChange={(v) => set("tp",v)} />
               <label className="control-field"><span>Scheduler</span><div className="select-wrap"><select value={form.scheduler} onChange={(e) => set("scheduler",e.target.value as FormState["scheduler"])}><option value="sarathi">Sarathi</option><option value="vllm">vLLM scheduler</option></select><ChevronDown size={14} /></div></label>
               {form.scheduler === "sarathi" && <><InputField label="Chunk size" suffix="tokens" min={64} step="1" value={form.chunk} onChange={(v) => set("chunk",v)} /><InputField label="Alternative chunk" suffix="tokens" min={64} step="1" value={form.alternate} onChange={(v) => set("alternate",v)} /></>}
             </div>
@@ -234,7 +234,7 @@ export default function Home() {
 
       <section className="content-section">
         <div className="section-intro"><div><span className="section-kicker">04 / KEEP THE EVIDENCE</span><h2>Candidate runbook.</h2><p>Compare settings and percentile latency for every saved run.</p></div><button className="button-quiet refresh-runs" onClick={() => void refresh()}><RefreshCw size={14} /> Refresh</button></div>
-        <div className="table-scroll"><table className="run-table"><thead><tr><th>Configuration</th><th>Workload</th><th>TTFT p90</th><th>TPOT p99</th><th>QPS / $·h</th><th>Result</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.run.run_id}><td><b>{item.run.configuration?.scheduler || "Sarathi"} · {item.run.replicas} replica(s)</b><small>chunk {item.run.configuration?.chunk_size ?? "—"} · batch {item.run.configuration?.batch_size ?? "—"} · {item.run.gpu_profile}</small><small>{item.run.run_id}</small></td><td>{item.run.qps} QPS<small>{item.run.request_count} requests</small></td><td>{item.ttft.toFixed(3)} s</td><td>{item.tpot.toFixed(3)} s</td><td>{item.efficiency.toFixed(3)}</td><td>{item.compliant ? <span className="pass-label"><Check size={13} /> Pass</span> : <span className="fail-label">Outside SLO</span>}</td></tr>)}{!candidates.length && <tr><td className="no-rows" colSpan={6}>No saved profiles yet. Run your first sweep above.</td></tr>}</tbody></table></div>
+        <div className="table-scroll"><table className="run-table"><thead><tr><th>Configuration</th><th>Workload</th><th>TTFT p90</th><th>TPOT p99</th><th>QPS / $·h</th><th>Result</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.run.run_id}><td><b>{item.run.configuration?.scheduler || "Sarathi"} · {item.run.replicas} replica(s)</b><small>PP {item.run.configuration?.pipeline_parallel ?? 1} · TP {item.run.configuration?.tensor_parallel ?? 1} · chunk {item.run.configuration?.chunk_size ?? "—"} · batch {item.run.configuration?.batch_size ?? "—"} · {item.run.gpu_profile}</small><small>{item.run.run_id}</small></td><td>{item.run.qps} QPS<small>{item.run.request_count} requests</small></td><td>{item.ttft.toFixed(3)} s</td><td>{item.tpot.toFixed(3)} s</td><td>{item.efficiency.toFixed(3)}</td><td>{item.compliant ? <span className="pass-label"><Check size={13} /> Pass</span> : <span className="fail-label">Outside SLO</span>}</td></tr>)}{!candidates.length && <tr><td className="no-rows" colSpan={6}>No saved profiles yet. Run your first sweep above.</td></tr>}</tbody></table></div>
         <p className="table-note">QPS / $·h is calculated from offered QPS ÷ replica count ÷ your cost assumption. It is not measured throughput or an actual cloud bill.</p>
       </section>
 
