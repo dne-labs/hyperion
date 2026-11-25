@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from hyperion_sim.metrics import metrics_response, record_request
 from hyperion_sim.runtime import RuntimeState, runtime
 import json
+import math
 from pathlib import Path
 
 
@@ -167,11 +168,11 @@ async def optimization_runs() -> dict:
             latency = profile.setdefault("latency", {})
             latency.setdefault(
                 "ttft_p90_ms",
-                round(ttft_samples[max(0, int(len(ttft_samples) * 0.90 + 0.999999) - 1)] * 1000, 2),
+                round(ttft_samples[max(0, math.ceil(len(ttft_samples) * 0.90) - 1)] * 1000, 2),
             )
             latency.setdefault(
                 "tpot_p99_ms",
-                round(samples[max(0, int(len(samples) * 0.99 + 0.999999) - 1)] * 1000, 2),
+                round(samples[max(0, math.ceil(len(samples) * 0.99) - 1)] * 1000, 2),
             )
         profile["run_id"] = run_dir.name
         profile["decode_samples_seconds"] = samples
