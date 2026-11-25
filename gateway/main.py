@@ -6,7 +6,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -170,12 +170,28 @@ async def get_vidur_recommendation(
     max_ttft_p95_ms: float = 600,
     max_e2e_p95_seconds: float = 10,
     max_scheduling_delay_p95_ms: float = 400,
+    max_ttft_p95_ms_hyphen: float | None = Query(default=None, alias="max-ttft-p95-ms"),
+    max_e2e_p95_seconds_hyphen: float | None = Query(default=None, alias="max-e2e-p95-seconds"),
+    max_scheduling_delay_p95_ms_hyphen: float | None = Query(default=None, alias="max-scheduling-delay-p95-ms"),
 ) -> dict:
-    """Recommend the fewest tested replicas meeting the requested latency targets."""
+    """Recommend the fewest tested replicas meeting the requested latency targets.
+
+    Both underscore and kebab-case query names are accepted.
+    """
     limits = {
-        "ttft_p95_ms": max_ttft_p95_ms,
-        "e2e_p95_seconds": max_e2e_p95_seconds,
-        "scheduling_delay_p95_ms": max_scheduling_delay_p95_ms,
+        "ttft_p95_ms": (
+            max_ttft_p95_ms if max_ttft_p95_ms_hyphen is None
+            else max_ttft_p95_ms_hyphen
+        ),
+        "e2e_p95_seconds": (
+            max_e2e_p95_seconds if max_e2e_p95_seconds_hyphen is None
+            else max_e2e_p95_seconds_hyphen
+        ),
+        "scheduling_delay_p95_ms": (
+            max_scheduling_delay_p95_ms
+            if max_scheduling_delay_p95_ms_hyphen is None
+            else max_scheduling_delay_p95_ms_hyphen
+        ),
     }
     if any(limit <= 0 for limit in limits.values()):
         raise HTTPException(status_code=422, detail="Latency targets must be greater than zero.")
