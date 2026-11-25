@@ -80,7 +80,7 @@ python -m hyperion_sim.recommend_replicas \
 
 Replace those example directory names with the folders containing each run's `hyperion_profile.json`. By default, the script uses example targets of TTFT p95 <= 600 ms, E2E p95 <= 10 seconds, and scheduling-delay p95 <= 400 ms. You can set different limits with `--max-ttft-p95-ms`, `--max-e2e-p95-seconds`, and `--max-scheduling-delay-p95-ms`. These are lab settings, not production SLOs. The script rejects profiles whose workload settings do not match.
 
-The same recommendation is available from the Gateway at `GET /vidur-recommendation`. The Next.js Control Room displays the selected replica count and each tested profile. The dashboard remains usable when Vidur profiles are absent; those panels show a message until profiles are generated.
+The same recommendation is available from the Gateway at `GET /vidur-recommendation`. The Next.js Control Room lets you edit the latency targets and displays the selected replica count and each tested profile. The dashboard remains usable when Vidur profiles are absent; those panels show a message until profiles are generated.
 
 ## Controller policy
 
