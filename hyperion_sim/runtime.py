@@ -21,6 +21,7 @@ class RuntimeState:
 @dataclass
 class ExecutionOutcome:
     prompt_tokens: int
+    output_tokens: int
     prefill_seconds: float
     decode_seconds: float
     cache_hit: bool
@@ -82,7 +83,15 @@ class HyperionRuntime:
         # controller's polling loop to observe a burst.
         await asyncio.sleep(min(decode_seconds, 6.0))
         self.decode_active -= 1
-        return ExecutionOutcome(prompt_tokens, prefill_seconds, decode_seconds, cache_hit, prefill_queue, decode_queue)
+        return ExecutionOutcome(
+            prompt_tokens,
+            output_tokens,
+            prefill_seconds,
+            decode_seconds,
+            cache_hit,
+            prefill_queue,
+            decode_queue,
+        )
 
 
 runtime = HyperionRuntime()
