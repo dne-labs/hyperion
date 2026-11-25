@@ -124,12 +124,25 @@ async def optimization_runs() -> dict:
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
         scenario_path = run_dir / "hyperion_scenario.json"
         if scenario_path.is_file():
-            profile["configuration"] = json.loads(
-                scenario_path.read_text(encoding="utf-8")
-            )
+            scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+            profile["configuration"] = profile.get("configuration", {}) | scenario
         else:
             profile.setdefault("configuration", {})
+            config_path = run_dir / "config.json"
+            if config_path.is_file():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                cluster = config.get("cluster_config", {})
+                scheduler = cluster.get("replica_scheduler_config", {})
+                profile["configuration"] = {
+                    "replicas": profile.get("replicas"),
+                    "scheduler": scheduler.get("name", "unknown"),
+                    "batch_size": scheduler.get("batch_size_cap"),
+                    "chunk_size": scheduler.get("chunk_size"),
+                    "pipeline_parallel": cluster.get("replica_config", {}).get("num_pipeline_stages", 1),
+                    "tensor_parallel": cluster.get("replica_config", {}).get("tensor_parallel_size", 1),
+                }
         samples = []
+        ttft_samples = []
         metrics_path = run_dir / "request_metrics.csv"
         if metrics_path.is_file():
             with metrics_path.open(newline="", encoding="utf-8") as file:
@@ -137,11 +150,29 @@ async def optimization_runs() -> dict:
                     raw = row.get(
                         "decode_time_execution_plus_preemption_normalized", ""
                     )
+                    ttft_raw = row.get("prefill_e2e_time", "")
                     if raw:
                         try:
                             samples.append(float(raw))
                         except ValueError:
-                            continue
+                            pass
+                    if ttft_raw:
+                        try:
+                            ttft_samples.append(float(ttft_raw))
+                        except ValueError:
+                            pass
+        if samples and ttft_samples:
+            samples.sort()
+            ttft_samples.sort()
+            latency = profile.setdefault("latency", {})
+            latency.setdefault(
+                "ttft_p90_ms",
+                round(ttft_samples[max(0, int(len(ttft_samples) * 0.90 + 0.999999) - 1)] * 1000, 2),
+            )
+            latency.setdefault(
+                "tpot_p99_ms",
+                round(samples[max(0, int(len(samples) * 0.99 + 0.999999) - 1)] * 1000, 2),
+            )
         profile["run_id"] = run_dir.name
         profile["decode_samples_seconds"] = samples
         runs.append(profile)
