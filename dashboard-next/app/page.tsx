@@ -50,6 +50,14 @@ type VidurProfile = {
   };
 };
 
+type ProfileComparison = {
+  baseline_run: string;
+  candidate_run: string;
+  same_workload: boolean;
+  baseline: VidurProfile;
+  candidate: VidurProfile;
+};
+
 const gateway =
   process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8000";
 
@@ -82,26 +90,36 @@ function Metric({
 export default function Home() {
   const [topology, setTopology] = useState<Topology | null>(null);
   const [profile, setProfile] = useState<VidurProfile | null>(null);
+  const [comparison, setComparison] = useState<ProfileComparison | null>(null);
   const [status, setStatus] = useState("Waiting for the gateway…");
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       // Fetch live topology and the saved Vidur profile at the same time.
-      const [topologyResponse, profileResponse] = await Promise.all([
-        fetch(`${gateway}/topology`),
-        fetch(`${gateway}/vidur-profile`),
-      ]);
+      const [topologyResponse, profileResponse, comparisonResponse] =
+        await Promise.all([
+          fetch(`${gateway}/topology`),
+          fetch(`${gateway}/vidur-profile`),
+          fetch(`${gateway}/vidur-comparison`),
+        ]);
 
-      if (!topologyResponse.ok || !profileResponse.ok) {
+      if (
+        !topologyResponse.ok ||
+        !profileResponse.ok ||
+        !comparisonResponse.ok
+      ) {
         throw new Error("A Gateway request failed");
       }
 
       const topologyData: Topology = await topologyResponse.json();
       const profileData: VidurProfile = await profileResponse.json();
+      const comparisonData: ProfileComparison =
+        await comparisonResponse.json();
 
       setTopology(topologyData);
       setProfile(profileData);
+      setComparison(comparisonData);
       setStatus("Connected — updates every 2 seconds");
     } catch {
       setStatus("Gateway or Vidur profile is unavailable");
@@ -153,6 +171,35 @@ export default function Home() {
 
   const state = topology?.state;
   const isConnected = status.startsWith("Connected");
+
+  const comparisonRows = comparison
+    ? [
+        {
+          label: "TTFT p95",
+          baseline: comparison.baseline.latency.ttft_p95_ms,
+          candidate: comparison.candidate.latency.ttft_p95_ms,
+          unit: "ms",
+        },
+        {
+          label: "E2E p95",
+          baseline: comparison.baseline.latency.e2e_p95_seconds,
+          candidate: comparison.candidate.latency.e2e_p95_seconds,
+          unit: "sec",
+        },
+        {
+          label: "TPOT p95",
+          baseline: comparison.baseline.latency.tpot_p95_ms,
+          candidate: comparison.candidate.latency.tpot_p95_ms,
+          unit: "ms/token",
+        },
+        {
+          label: "Scheduling delay p95",
+          baseline: comparison.baseline.latency.scheduling_delay_p95_ms,
+          candidate: comparison.candidate.latency.scheduling_delay_p95_ms,
+          unit: "ms",
+        },
+      ]
+    : [];
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#172554_0%,#020617_42%)] px-5 py-8 font-sans md:px-10">
@@ -281,6 +328,89 @@ export default function Home() {
               Workload: {profile.prompt_tokens} prompt tokens and{" "}
               {profile.output_tokens} output tokens per request. These are
               simulated hardware-profile results.
+            </p>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <h2 className="mb-2 text-lg font-semibold text-white">
+            Replica comparison
+          </h2>
+
+          {comparison?.same_workload ? (
+            <>
+              <p className="mb-4 text-sm text-slate-400">
+                {comparison.baseline.replicas} replica
+                {comparison.baseline.replicas === 1 ? "" : "s"} vs{" "}
+                {comparison.candidate.replicas} replicas. Same workload
+                settings.
+              </p>
+
+              <Card className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-slate-800 text-slate-400">
+                    <tr>
+                      <th className="p-4">Metric</th>
+                      <th className="p-4">Baseline</th>
+                      <th className="p-4">Candidate</th>
+                      <th className="p-4">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonRows.map((row) => {
+                      const change =
+                        row.baseline === 0
+                          ? null
+                          : ((row.baseline - row.candidate) / row.baseline) *
+                            100;
+                      const changeLabel =
+                        change === null
+                          ? "—"
+                          : change >= 0
+                            ? `${change.toFixed(1)}% lower`
+                            : `${Math.abs(change).toFixed(1)}% higher`;
+
+                      return (
+                        <tr
+                          key={row.label}
+                          className="border-b border-slate-800"
+                        >
+                          <td className="p-4 font-medium text-white">
+                            {row.label}
+                          </td>
+                          <td className="p-4 text-slate-300">
+                            {row.baseline.toFixed(2)} {row.unit}
+                          </td>
+                          <td className="p-4 text-slate-300">
+                            {row.candidate.toFixed(2)} {row.unit}
+                          </td>
+                          <td
+                            className={`p-4 ${
+                              change === null
+                                ? "text-slate-400"
+                                : change >= 0
+                                  ? "text-emerald-300"
+                                  : "text-rose-300"
+                            }`}
+                          >
+                            {changeLabel}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </Card>
+              <p className="mt-3 text-xs text-slate-500">
+                Baseline run: {comparison.baseline_run} · Candidate run:{" "}
+                {comparison.candidate_run}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-amber-300">
+              {comparison
+                ? "The workloads differ, so these results are not a fair replica comparison."
+                : "Loading the comparison…"}
             </p>
           )}
         </section>
