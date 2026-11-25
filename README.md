@@ -14,7 +14,8 @@ Vidur estimates performance for a selected GPU profile. It does not create a vir
 - KV/prefix cache with hit/miss metrics
 - Prometheus metrics endpoint and Grafana dashboard provisioning
 - Rule-based controller that changes simulated pool sizes and cache/speculation state based on queue and cache counts
-- Vidur scenario runner for offline GPU-profile capacity studies
+- Vidur sweep optimizer that runs a bounded candidate set and ranks configurations against latency SLOs
+- Pareto-style latency/efficiency charts and request-level decode CDF in the Control Room
 - Next.js Control Room dashboard; a Streamlit dashboard source is also included
 
 ## Quick start (no GPU)
@@ -77,15 +78,21 @@ flowchart LR
   V[Vidur offline simulation] --> A
 ```
 
-## Running Vidur (optional)
+## Run Vidur from the command line
 
-Vidur runs in its own Python 3.10 Docker image, so it cannot conflict with your normal Python installation:
+The optimizer service above is the recommended way to run the dashboard sweep. To run one manually while the Vidur profile is up:
 
 ```bash
-docker compose --profile vidur run --rm vidur --qps 4 --requests 128
+docker compose exec vidur python /workspace/hyperion_sim/vidur_runner.py --qps 4 --requests 32 --replicas 2
 ```
 
-The first run downloads the Vidur image dependencies. The runner writes a reproducible command and scenario metadata under `simulator_output/`. For exact model/device profiles, use the supported Vidur model/device combinations described in its README.
+Then process a run's request metrics to save its profile:
+
+```bash
+python -m hyperion_sim.vidur_results --run-dir simulator_output/<run-folder>
+```
+
+Vidur runs in a Python 3.10 container. The optimizer writes profiles and CSV metrics under `simulator_output/`; the dashboard reads from that same directory.
 
 ## Recommend a replica count
 
@@ -100,24 +107,24 @@ python -m hyperion_sim.recommend_replicas \
 
 Replace those example directory names with the folders containing each run's `hyperion_profile.json`. By default, the script uses example targets of TTFT p95 <= 600 ms, E2E p95 <= 10 seconds, and scheduling-delay p95 <= 400 ms. You can set different limits with `--max-ttft-p95-ms`, `--max-e2e-p95-seconds`, and `--max-scheduling-delay-p95-ms`. These are lab settings, not production SLOs. The script rejects profiles whose workload settings do not match.
 
-The same recommendation is available from the Gateway at `GET /vidur-recommendation`. The Next.js Control Room lets you edit the latency targets and displays the selected replica count and each tested profile. The dashboard remains usable when Vidur profiles are absent; those panels show a message until profiles are generated.
+The Gateway exposes the tested run list at `GET /optimization/runs` and starts a sweep through `POST /optimization/run`. `GET /vidur-recommendation` remains available for the earlier replica-count workflow.
 
 ## What the current version simulates
 
 The Gateway returns a generated placeholder response; it does not call a language model. Its prefill and decode stages are logical queues in one Python process, and its prefix cache is an in-memory timing model. Prometheus records simulated request counters, latency histograms, cache events, and queue values. There is no physical GPU utilization metric.
 
-The controller polls every two seconds by default. It adds a simulated prefill or decode replica when the corresponding active queue exceeds its current capacity. When the cache-entry count exceeds 20, it sets the aggressive-cache and speculative-decoding flags. Those flags describe simulator state; they do not change vLLM kernels or model execution. This version does not apply Vidur's offline recommendation to the running topology.
+The controller polls every two seconds by default. It adds a simulated prefill or decode replica when the corresponding active queue exceeds its current capacity. When the cache-entry count exceeds 20, it sets the aggressive-cache and speculative-decoding flags. Those flags describe simulator state; they do not change vLLM kernels or model execution. The Vidur optimizer compares scenarios and surfaces a recommended candidate, but it does not apply that configuration to a live serving cluster.
 
 ## Current limits and next engineering steps
 
 The optional vLLM CPU profile provides genuine model inference through one vLLM server. The regular Gateway's prefill/decode queues, in-memory cache, and controller remain simulator components. The CPU vLLM path currently does not stream tokens or export vLLM metrics into Hyperion's local Prometheus scrape.
 
-Still required for the original GPU inference OS vision:
+Still required for the full GPU inference OS vision:
 
 - Real separate Prefill and Decode workers that share/transmit the model's actual KV tensors. Two independent model servers alone do not achieve disaggregated inference.
 - A compatible KV connector such as NIXL, validated against the chosen vLLM version and hardware. vLLM documents disaggregated prefill as experimental; it needs coordinated instances and a functioning connector.
 - Real GPU deployment and GPU telemetry. Vidur outputs are estimates, not measured GPU telemetry.
 - Actual speculative decoding and quantization configurations validated against a model/backend. Current simulator flags do not activate those features.
-- A controller that proposes and safely applies real serving configuration changes. Current controller rules operate on simulated topology, not the CPU vLLM service.
+- A controller that safely applies real serving changes and measures their effect. The current Vidur optimizer recommends among offline simulations; the rules controller operates on simulated topology.
 
 These are not represented as complete. Start with the CPU model request, then proceed to the real serving integration in small, hardware-appropriate steps.
