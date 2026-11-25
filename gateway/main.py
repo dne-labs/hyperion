@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from hyperion_sim.metrics import metrics_response, record_request
 from hyperion_sim.runtime import RuntimeState, runtime
+import json
+from pathlib import Path
 
 
 class Message(BaseModel):
@@ -80,6 +82,21 @@ async def controller_decision(decision: str) -> dict:
 @app.get("/metrics")
 async def metrics() -> Response:
     return metrics_response()
+
+@app.get("/vidur-profile")
+async def get_vidur_profile() -> dict:
+    project_root = Path(__file__).resolve().parents[1]
+    output_dir = project_root / "simulator_output"
+    profiles = sorted(output_dir.glob("*/hyperion_profile.json"))
+
+    if not profiles:
+        raise HTTPException(
+            status_code=404,
+            detail="No Vidur profile found. Run Vidur and create a profile first.",
+        )
+
+    latest_profile = profiles[-1]
+    return json.loads(latest_profile.read_text(encoding="utf-8"))
 
 
 @app.post("/v1/chat/completions")
