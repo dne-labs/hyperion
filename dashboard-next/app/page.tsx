@@ -159,7 +159,7 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
-  const efficiency = (run: Run) => run.qps / Math.max(1, run.replicas) / cost;
+  const efficiency = (run: Run) => run.qps / (Math.max(1, run.replicas) * Math.max(1, run.configuration?.pipeline_parallel ?? 1) * Math.max(1, run.configuration?.tensor_parallel ?? 1)) / cost;
   const ttft = (run: Run) => (run.latency.ttft_p90_ms ?? run.latency.ttft_p95_ms ?? 0) / 1000;
   const tpot = (run: Run) => (run.latency.tpot_p99_ms ?? run.latency.tpot_p95_ms ?? 0) / 1000;
 
