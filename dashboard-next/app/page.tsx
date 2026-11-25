@@ -131,6 +131,16 @@ export default function Home() {
   const [comparison, setComparison] = useState<ProfileComparison | null>(null);
   const [recommendation, setRecommendation] =
     useState<VidurRecommendation | null>(null);
+  const [targets, setTargets] = useState({
+    ttft_p95_ms: 600,
+    e2e_p95_seconds: 10,
+    scheduling_delay_p95_ms: 400,
+  });
+  const [targetDraft, setTargetDraft] = useState({
+    ttft_p95_ms: "600",
+    e2e_p95_seconds: "10",
+    scheduling_delay_p95_ms: "400",
+  });
   const [status, setStatus] = useState("Waiting for the gateway…");
   const [loading, setLoading] = useState(false);
 
@@ -144,12 +154,19 @@ export default function Home() {
         throw new Error("Gateway topology request failed");
       }
 
+      const targetQuery = new URLSearchParams({
+        "max-ttft-p95-ms": String(targets.ttft_p95_ms),
+        "max-e2e-p95-seconds": String(targets.e2e_p95_seconds),
+        "max-scheduling-delay-p95-ms": String(
+          targets.scheduling_delay_p95_ms,
+        ),
+      });
       const [profileData, comparisonData, recommendationData] =
         await Promise.all(
           [
             `${gateway}/vidur-profile`,
             `${gateway}/vidur-comparison`,
-            `${gateway}/vidur-recommendation`,
+            `${gateway}/vidur-recommendation?${targetQuery}`,
           ].map(async (url) => {
             try {
               const response = await fetch(url);
@@ -169,7 +186,7 @@ export default function Home() {
     } catch {
       setStatus("Gateway is offline. Start Docker Compose to reconnect.");
     }
-  }, []);
+  }, [targets]);
 
   useEffect(() => {
     void refresh();
@@ -388,6 +405,77 @@ export default function Home() {
               </p>
               <Card>
                 <CardContent className="pt-5">
+                  <form
+                    className="mb-6 grid gap-3 md:grid-cols-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setTargets({
+                        ttft_p95_ms: Number(targetDraft.ttft_p95_ms),
+                        e2e_p95_seconds: Number(targetDraft.e2e_p95_seconds),
+                        scheduling_delay_p95_ms: Number(
+                          targetDraft.scheduling_delay_p95_ms,
+                        ),
+                      });
+                    }}
+                  >
+                    <label className="grid gap-1 text-xs text-slate-400">
+                      TTFT p95 limit (ms)
+                      <input
+                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                        type="number"
+                        min="1"
+                        step="10"
+                        required
+                        value={targetDraft.ttft_p95_ms}
+                        onChange={(event) =>
+                          setTargetDraft({
+                            ...targetDraft,
+                            ttft_p95_ms: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs text-slate-400">
+                      E2E p95 limit (sec)
+                      <input
+                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                        type="number"
+                        min="0.1"
+                        step="0.5"
+                        required
+                        value={targetDraft.e2e_p95_seconds}
+                        onChange={(event) =>
+                          setTargetDraft({
+                            ...targetDraft,
+                            e2e_p95_seconds: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs text-slate-400">
+                      Queue delay p95 limit (ms)
+                      <input
+                        className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                        type="number"
+                        min="1"
+                        step="10"
+                        required
+                        value={targetDraft.scheduling_delay_p95_ms}
+                        onChange={(event) =>
+                          setTargetDraft({
+                            ...targetDraft,
+                            scheduling_delay_p95_ms: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="flex items-end">
+                      <Button type="submit" className="w-full">
+                        Apply latency targets
+                      </Button>
+                    </div>
+                  </form>
+
                   {recommendation.recommendation ? (
                     <>
                       <p className="text-xl font-bold text-emerald-300">
