@@ -72,7 +72,7 @@ function Cdf({ run }: { run?: Run }) {
   const max = Math.max(...values, 0.01) * 1.05;
   const points = values.map((v, i) => (L + (v / max) * PW) + "," + (T + PH - ((i + 1) / values.length) * PH)).join(" ");
   return <svg viewBox={"0 0 " + W + " " + H} className="plot cdf-plot" role="img" aria-label="Cumulative distribution of normalized decode time">
-    {[0,.25,.5,.75,1].map((r) => <g key={r}><line x1={L} x2={L + PW} y1={T + PH * (1-r)} y2={T + PH * (1-r)} stroke="#e3eaed" /><text x={L - 9} y={T + PH * (1-r) + 4} textAnchor="end" className="plot-tick">{r.toFixed(2)}</text></g>)}
+    {[0,.25,.5,.75,1].map((r) => <g key={r}><line x1={L} x2={L + PW} y1={T + PH * (1-r)} y2={T + PH * (1-r)} stroke="#e3eaed" /><line x1={L + PW*r} x2={L + PW*r} y1={T} y2={T+PH} stroke="#edf1f2" /><text x={L - 9} y={T + PH * (1-r) + 4} textAnchor="end" className="plot-tick">{r.toFixed(2)}</text><text x={L+PW*r} y={T+PH+17} textAnchor="middle" className="plot-tick">{(max*r).toFixed(3)}</text></g>)}
     <line x1={L} x2={L} y1={T} y2={T+PH} stroke="#93a1a8" /><line x1={L} x2={L+PW} y1={T+PH} y2={T+PH} stroke="#93a1a8" />
     {values.length > 1 && <polyline points={points} fill="none" stroke="#ed4a4a" strokeWidth="2.2" />}
     {values.length < 2 && <text x={L + PW/2} y={T + PH/2} textAnchor="middle" className="plot-label">Run Vidur to see per-request latency distribution.</text>}
