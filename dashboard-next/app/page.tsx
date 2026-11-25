@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowRight,
@@ -252,7 +252,7 @@ export default function Home() {
     }
   }
 
-  function applyTargets(event: React.FormEvent<HTMLFormElement>) {
+  function applyTargets(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTargets({
       ttft_p95_ms: Number(targetDraft.ttft_p95_ms),
