@@ -32,6 +32,8 @@ class SweepRequest(BaseModel):
     prompt_tokens: int = Field(default=2048, ge=32, le=4096)
     output_tokens: int = Field(default=512, ge=8, le=2048)
     batch_size: int = Field(default=128, ge=8, le=256)
+    pipeline_parallel: int = Field(default=1, ge=1, le=4)
+    tensor_parallel: int = Field(default=1, ge=1, le=4)
     scheduler: Literal["sarathi", "vllm"] = "sarathi"
     chunk_size: int = Field(default=512, ge=64, le=2048)
     alternate_chunk_size: int = Field(default=256, ge=64, le=2048)
@@ -43,7 +45,8 @@ def command_for(args: SweepRequest, replicas: int, chunk_size: int) -> list[str]
         "--replica_config_device", "a100",
         "--replica_config_model_name", "meta-llama/Meta-Llama-3-8B",
         "--cluster_config_num_replicas", str(replicas),
-        "--replica_config_tensor_parallel_size", "1",
+        "--replica_config_tensor_parallel_size", str(args.tensor_parallel),
+        "--replica_config_num_pipeline_stages", str(args.pipeline_parallel),
         "--replica_scheduler_config_type", args.scheduler,
         "--request_generator_config_type", "synthetic",
         "--length_generator_config_type", "fixed",
@@ -67,6 +70,8 @@ def command_for(args: SweepRequest, replicas: int, chunk_size: int) -> list[str]
 
 
 def run_one(args: SweepRequest, replicas: int, chunk_size: int) -> dict:
+    if args.pipeline_parallel * args.tensor_parallel > 4:
+        raise RuntimeError("A100 pairwise NVLink profile supports at most 4 GPUs per replica.")
     RUN_ROOT.mkdir(parents=True, exist_ok=True)
     before = {
         path.name for path in RUN_ROOT.iterdir()
@@ -114,6 +119,8 @@ def run_one(args: SweepRequest, replicas: int, chunk_size: int) -> dict:
         "replicas": replicas,
         "scheduler": args.scheduler,
         "batch_size": args.batch_size,
+        "pipeline_parallel": args.pipeline_parallel,
+        "tensor_parallel": args.tensor_parallel,
         "chunk_size": chunk_size if args.scheduler == "sarathi" else None,
         "offered_qps": args.qps,
         "request_count": args.requests,
