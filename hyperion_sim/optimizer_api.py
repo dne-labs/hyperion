@@ -11,6 +11,8 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from hyperion_sim.vidur_results import build_profile, load_request_metrics
+
 app = FastAPI(title="Hyperion Vidur Optimizer", version="0.1.0")
 RUN_ROOT = Path(os.getenv("HYPERION_OUTPUT_DIR", "/workspace/simulator_output"))
 RUN_LOCK = asyncio.Lock()
@@ -109,6 +111,17 @@ def run_one(args: SweepRequest, replicas: int, chunk_size: int) -> dict:
     }
     (run_dir / "hyperion_scenario.json").write_text(
         json.dumps(scenario, indent=2), encoding="utf-8"
+    )
+    rows = load_request_metrics(run_dir / "request_metrics.csv")
+    config = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    profile = build_profile(rows, config)
+    profile["configuration"].update({
+        "scheduler": args.scheduler,
+        "batch_size": args.batch_size,
+        "chunk_size": scenario["chunk_size"],
+    })
+    (run_dir / "hyperion_profile.json").write_text(
+        json.dumps(profile, indent=2), encoding="utf-8"
     )
     return {
         "run": run_dir.name,
