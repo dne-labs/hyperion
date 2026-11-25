@@ -6,7 +6,7 @@ WORKDIR /opt/vidur
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
     && git clone --depth 1 https://github.com/microsoft/vidur.git . \
     && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir . fastapi uvicorn
 
 RUN python -c "import vidur; print('Vidur installed at:', vidur.__file__)"
 
