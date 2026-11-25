@@ -51,8 +51,8 @@ function Scatter({
       const compliant = isCompliant
         ? isCompliant(run)
         : (xLimit === undefined || xValue(run) <= xLimit) && (yLimit === undefined || yValue(run) <= yLimit);
-      const efficiency = run.qps / Math.max(1, run.replicas) / Math.max(0.01, cost);
-      const maxEfficiency = Math.max(...runs.map((item) => item.qps / Math.max(1, item.replicas) / Math.max(0.01, cost)), 0.01);
+      const efficiency = run.qps / (Math.max(1, run.replicas) * Math.max(1, run.configuration?.pipeline_parallel ?? 1) * Math.max(1, run.configuration?.tensor_parallel ?? 1)) / Math.max(0.01, cost);
+      const maxEfficiency = Math.max(...runs.map((item) => item.qps / (Math.max(1, item.replicas) * Math.max(1, item.configuration?.pipeline_parallel ?? 1) * Math.max(1, item.configuration?.tensor_parallel ?? 1)) / Math.max(0.01, cost)), 0.01);
       const color = colorMap ? "hsl(" + (220 - Math.min(170, efficiency / maxEfficiency * 170)) + " 72% 46%)" : compliant ? "#16804a" : "#4256e8";
       return <g key={run.run_id}><circle cx={x(xValue(run))} cy={y(yValue(run))} r={run.run_id === bestId ? 7 : 5} fill={color} stroke="white" strokeWidth="1.5" /><title>{run.replicas + " replicas · " + (run.configuration?.scheduler || "scheduler") + " · " + run.run_id}</title>{run.run_id === bestId && <text x={x(xValue(run))} y={y(yValue(run)) + 5} textAnchor="middle" fill="#f59e0b" fontSize="18">★</text>}</g>;
     })}
@@ -117,7 +117,7 @@ export default function Home() {
   const candidates = useMemo(() => runs.map((run) => {
     const ttft = (run.latency.ttft_p90_ms ?? run.latency.ttft_p95_ms ?? 0) / 1000;
     const tpot = (run.latency.tpot_p99_ms ?? run.latency.tpot_p95_ms ?? 0) / 1000;
-    const efficiency = run.qps / Math.max(1, run.replicas) / cost;
+    const efficiency = run.qps / (Math.max(1, run.replicas) * Math.max(1, run.configuration?.pipeline_parallel ?? 1) * Math.max(1, run.configuration?.tensor_parallel ?? 1)) / cost;
     return { run, ttft, tpot, efficiency, compliant: ttft <= ttftLimit && tpot <= tpotLimit };
   }), [runs, cost, ttftLimit, tpotLimit]);
   const bestItem = [...candidates].filter((item) => item.compliant).sort((a,b) => b.efficiency-a.efficiency)[0];
@@ -183,7 +183,7 @@ export default function Home() {
       <section className="metrics-row">
         <MetricCard icon={Layers3} label="Saved candidates" value={String(runs.length)} hint="Vidur profiles available for comparison" />
         <MetricCard icon={Check} label="SLO compliant" value={passing + " / " + runs.length} hint="Candidates inside both latency limits" />
-        <MetricCard icon={Gauge} label="Best QPS / $·h" value={best ? efficiency(best).toFixed(3) : "—"} hint="Offered QPS per replica and assumed hourly cost" />
+        <MetricCard icon={Gauge} label="Best QPS / $·h" value={best ? efficiency(best).toFixed(3) : "—"} hint="Offered QPS per GPU and assumed hourly cost" />
         <MetricCard icon={Activity} label="Optimizer" value={optimizerOnline ? "Ready" : "Stopped"} hint={optimizerOnline ? "Vidur service can accept a sweep" : "Start the optional Vidur service below"} />
       </section>
 
@@ -238,7 +238,7 @@ export default function Home() {
       <section className="content-section">
         <div className="section-intro"><div><span className="section-kicker">04 / KEEP THE EVIDENCE</span><h2>Candidate runbook.</h2><p>Compare settings and percentile latency for every saved run.</p></div><button className="button-quiet refresh-runs" onClick={() => void refresh()}><RefreshCw size={14} /> Refresh</button></div>
         <div className="table-scroll"><table className="run-table"><thead><tr><th>Configuration</th><th>Workload</th><th>TTFT p90</th><th>TPOT p99</th><th>QPS / $·h</th><th>Result</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.run.run_id}><td><b>{item.run.configuration?.scheduler || "Sarathi"} · {item.run.replicas} replica(s)</b><small>PP {item.run.configuration?.pipeline_parallel ?? 1} · TP {item.run.configuration?.tensor_parallel ?? 1} · chunk {item.run.configuration?.chunk_size ?? "—"} · batch {item.run.configuration?.batch_size ?? "—"} · {item.run.gpu_profile}</small><small>{item.run.run_id}</small></td><td>{item.run.qps} QPS<small>{item.run.request_count} requests</small></td><td>{item.ttft.toFixed(3)} s</td><td>{item.tpot.toFixed(3)} s</td><td>{item.efficiency.toFixed(3)}</td><td>{item.compliant ? <span className="pass-label"><Check size={13} /> Pass</span> : <span className="fail-label">Outside SLO</span>}</td></tr>)}{!candidates.length && <tr><td className="no-rows" colSpan={6}>No saved profiles yet. Run your first sweep above.</td></tr>}</tbody></table></div>
-        <p className="table-note">QPS / $·h is calculated from offered QPS ÷ replica count ÷ your cost assumption. It is not measured throughput or an actual cloud bill.</p>
+        <p className="table-note">QPS / $·h is calculated from offered QPS ÷ (replicas × PP × TP) ÷ your cost assumption. It is not measured throughput or an actual cloud bill.</p>
       </section>
 
       <footer className="footer"><div className="footer-brand"><span className="logo-mark"><Zap size={14} fill="currentColor" /></span><b>HYPERION</b><span>Inference optimization lab</span></div><p>Vidur is an offline GPU-profile simulator, not a physical GPU.</p></footer>
