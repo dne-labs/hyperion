@@ -1,6 +1,6 @@
 # Hyperion
 
-Hyperion is a **disaggregated LLM-inference control-plane simulator**. It models a prefill pool, decode pool, prefix/KV fabric, gateway metrics, and a self-tuning controller without requiring a GPU or model download.
+Hyperion is a **CPU-only simulator for an LLM-inference control plane**. It models logical prefill and decode queues, a small in-memory prefix-cache model, request metrics, a rule-based controller, and offline Vidur capacity studies. It does not run an LLM.
 
 > Vidur is used for capacity/performance simulation. It is not a fake CUDA device and cannot run vLLM on a CPU-only machine.
 
@@ -10,9 +10,9 @@ Hyperion is a **disaggregated LLM-inference control-plane simulator**. It models
 - Separate simulated prefill and decode queues
 - KV/prefix cache with hit/miss metrics
 - Prometheus metrics endpoint and Grafana dashboard provisioning
-- Rule-based controller which changes pool size, batching, prefix-cache mode, and speculative decoding
-- Vidur scenario runner for an optional high-fidelity offline capacity study
-- Streamlit live dashboard
+- Rule-based controller that changes simulated pool sizes and cache/speculation state based on queue and cache counts
+- Vidur scenario runner for offline GPU-profile capacity studies
+- Next.js Control Room dashboard; a Streamlit dashboard source is also included
 
 ## Quick start (no GPU)
 
@@ -82,14 +82,18 @@ Replace those example directory names with the folders containing each run's `hy
 
 The same recommendation is available from the Gateway at `GET /vidur-recommendation`. The Next.js Control Room lets you edit the latency targets and displays the selected replica count and each tested profile. The dashboard remains usable when Vidur profiles are absent; those panels show a message until profiles are generated.
 
-## Controller policy
+## What the current version simulates
 
-Every 10 seconds the controller observes queue depth, p95 TTFT, token latency, and cache hit rate.
+The Gateway returns a generated placeholder response; it does not call a language model. Its prefill and decode stages are logical queues in one Python process, and its prefix cache is an in-memory timing model. Prometheus records simulated request counters, latency histograms, cache events, and queue values. There is no physical GPU utilization metric.
 
-- high prefill pressure -> add a prefill replica
-- high decode pressure -> add a decode replica
-- high shared-prefix traffic -> aggressive prefix cache
-- stable predictable traffic -> enable speculative decoding
-- idleness -> shrink pools safely
+The controller polls every two seconds by default. It adds a simulated prefill or decode replica when the corresponding active queue exceeds its current capacity. When the cache-entry count exceeds 20, it sets the aggressive-cache and speculative-decoding flags. Those flags describe simulator state; they do not change vLLM kernels or model execution. This version does not apply Vidur's offline recommendation to the running topology.
 
-These are simulated topology changes today. Replacing `RuntimeState` with Kubernetes/vLLM/SGLang adapters is the Phase 2 production integration point.
+## Not implemented yet
+
+- Real vLLM or SGLang model serving, including token streaming
+- Separate Prefill and Decode worker processes that transfer real KV tensors
+- Redis, NIXL, or Mooncake as a distributed KV-transfer fabric
+- Physical GPU metrics, model quantization, and working speculative decoding
+- An LLM-based controller or production orchestration that starts and stops real workers
+
+Vidur estimates capacity from GPU profiles while running on the CPU. It is not a fake CUDA GPU and cannot make a CPU run vLLM as though an NVIDIA GPU were present. These boundaries are deliberate so simulated results are not mistaken for live inference measurements.
