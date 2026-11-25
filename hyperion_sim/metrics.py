@@ -17,7 +17,7 @@ def record_request(outcome, total: float) -> None:
     REQUESTS.inc()
     (CACHE_HITS if outcome.cache_hit else CACHE_MISSES).inc()
     TTFT.observe(outcome.prefill_seconds)
-    TPOT.observe(outcome.decode_seconds / max(1, outcome.prompt_tokens))
+    TPOT.observe(outcome.decode_seconds / max(1, outcome.output_tokens))
     E2E.observe(total)
     PREFILL_QUEUE.set(outcome.prefill_queue_depth)
     DECODE_QUEUE.set(outcome.decode_queue_depth)
