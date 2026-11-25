@@ -9,11 +9,18 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from hyperion_sim.vidur_results import build_profile, load_request_metrics
 
 app = FastAPI(title="Hyperion Vidur Optimizer", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["content-type"],
+)
 RUN_ROOT = Path(os.getenv("HYPERION_OUTPUT_DIR", "/workspace/simulator_output"))
 RUN_LOCK = asyncio.Lock()
 
