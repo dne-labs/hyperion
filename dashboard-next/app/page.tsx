@@ -197,7 +197,8 @@ export default function Home() {
               <InputField label="Request count" suffix="requests" min={8} step="1" value={form.requests} onChange={(v) => set("requests",v)} />
               <InputField label="Prompt" suffix="tokens" min={32} step="1" value={form.prompt} onChange={(v) => set("prompt",v)} />
               <InputField label="Generated answer" suffix="tokens" min={8} step="1" value={form.output} onChange={(v) => set("output",v)} />
-              <InputField label="Batch size cap" suffix="requests" min={8} step="1" value={form.batch} onChange={(v) => set("batch",v)} />\n              <InputField label="Pipeline parallel (PP)" suffix="stages" min={1} step="1" value={form.pp} onChange={(v) => set("pp",v)} />\n              <InputField label="Tensor parallel (TP)" suffix="GPUs" min={1} step="1" value={form.tp} onChange={(v) => set("tp",v)} />
+              <InputField label="Batch size cap" suffix="requests" min={8} step="1" value={form.batch} onChange={(v) => set("batch",v)} />
+              <InputField label="Pipeline parallel (PP)" suffix="stages" min={1} step="1" value={form.pp} onChange={(v) => set("pp",v)} />\n              <InputField label="Tensor parallel (TP)" suffix="GPUs" min={1} step="1" value={form.tp} onChange={(v) => set("tp",v)} />
               <label className="control-field"><span>Scheduler</span><div className="select-wrap"><select value={form.scheduler} onChange={(e) => set("scheduler",e.target.value as FormState["scheduler"])}><option value="sarathi">Sarathi</option><option value="vllm">vLLM scheduler</option></select><ChevronDown size={14} /></div></label>
               {form.scheduler === "sarathi" && <><InputField label="Chunk size" suffix="tokens" min={64} step="1" value={form.chunk} onChange={(v) => set("chunk",v)} /><InputField label="Alternative chunk" suffix="tokens" min={64} step="1" value={form.alternate} onChange={(v) => set("alternate",v)} /></>}
             </div>
