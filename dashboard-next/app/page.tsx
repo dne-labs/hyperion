@@ -27,11 +27,11 @@ function InputField({ label, value, suffix, onChange, min, step }: { label: stri
 function Pill({ children }: { children: ReactNode }) { return <span className="run-pill">{children}</span>; }
 
 function Scatter({
-  runs, xValue, yValue, xLimit, yLimit, xLabel, yLabel, bestId, cost, colorMap,
+  runs, xValue, yValue, xLimit, yLimit, xLabel, yLabel, bestId, cost, colorMap, isCompliant,
 }: {
   runs: Run[]; xValue: (run: Run) => number; yValue: (run: Run) => number;
   xLimit?: number; yLimit?: number; xLabel: string; yLabel: string;
-  bestId?: string; cost: number; colorMap?: boolean;
+  bestId?: string; cost: number; colorMap?: boolean; isCompliant?: (run: Run) => boolean;
 }) {
   const W = 560, H = 300, L = 63, R = 18, T = 19, B = 49, PW = W - L - R, PH = H - T - B;
   const xs = runs.map(xValue), ys = runs.map(yValue);
@@ -48,8 +48,12 @@ function Scatter({
     {yLimit !== undefined && <line x1={L} x2={L + PW} y1={y(yLimit)} y2={y(yLimit)} stroke="#ef5350" strokeWidth="1.5" />}
     <line x1={L} x2={L} y1={T} y2={T + PH} stroke="#93a1a8" /><line x1={L} x2={L + PW} y1={T + PH} y2={T + PH} stroke="#93a1a8" />
     {runs.map((run) => {
-      const compliant = (xLimit === undefined || xValue(run) <= xLimit) && (yLimit === undefined || yValue(run) <= yLimit);
-      const color = colorMap ? "hsl(" + (220 - Math.min(170, run.qps * 22)) + " 72% 46%)" : compliant ? "#16804a" : "#4256e8";
+      const compliant = isCompliant
+        ? isCompliant(run)
+        : (xLimit === undefined || xValue(run) <= xLimit) && (yLimit === undefined || yValue(run) <= yLimit);
+      const efficiency = run.qps / Math.max(1, run.replicas) / Math.max(0.01, cost);
+      const maxEfficiency = Math.max(...runs.map((item) => item.qps / Math.max(1, item.replicas) / Math.max(0.01, cost)), 0.01);
+      const color = colorMap ? "hsl(" + (220 - Math.min(170, efficiency / maxEfficiency * 170)) + " 72% 46%)" : compliant ? "#16804a" : "#4256e8";
       return <g key={run.run_id}><circle cx={x(xValue(run))} cy={y(yValue(run))} r={run.run_id === bestId ? 7 : 5} fill={color} stroke="white" strokeWidth="1.5" /><title>{run.replicas + " replicas · " + (run.configuration?.scheduler || "scheduler") + " · " + run.run_id}</title>{run.run_id === bestId && <text x={x(xValue(run))} y={y(yValue(run)) + 5} textAnchor="middle" fill="#f59e0b" fontSize="18">★</text>}</g>;
     })}
     <text x={L + PW / 2} y={H - 7} textAnchor="middle" className="plot-label">{xLabel}</text>
