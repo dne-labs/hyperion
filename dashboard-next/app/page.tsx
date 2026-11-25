@@ -169,7 +169,7 @@ export default function Home() {
     } catch {
       setStatus("Gateway is offline. Start Docker Compose to reconnect.");
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
