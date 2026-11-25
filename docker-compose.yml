@@ -7,6 +7,7 @@ services:
       HYPERION_BACKEND: ${HYPERION_BACKEND:-simulator}
       HYPERION_VLLM_URL: http://vllm-cpu:8000
       HYPERION_VLLM_MODEL: ${HYPERION_VLLM_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      HYPERION_VIDUR_URL: http://vidur:8100
     ports: ["8000:8000"]
     volumes: [".:/app"]
 
@@ -48,14 +49,20 @@ services:
       dockerfile: Dockerfile.vidur
     profiles: ["vidur"]
     cpus: 2.0
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /workspace
+    entrypoint: ["python", "-m", "uvicorn"]
+    command: ["hyperion_sim.optimizer_api:app", "--host", "0.0.0.0", "--port", "8100"]
     environment:
       OMP_NUM_THREADS: 2
       OPENBLAS_NUM_THREADS: 2
       MKL_NUM_THREADS: 2
       NUMEXPR_NUM_THREADS: 2
+      PYTHONPATH: /workspace:/opt/vidur
+      HYPERION_OUTPUT_DIR: /workspace/simulator_output
+    ports: ["8101:8100"]
     volumes:
       - .:/workspace
-      - ./simulator_output:/opt/vidur/simulator_output
 
   # Optional real CPU inference. Start explicitly with --profile vllm-cpu.
   # Keep the CPU and sequence limits low on machines without a GPU.
