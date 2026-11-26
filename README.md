@@ -142,3 +142,16 @@ Still required for the full GPU inference OS vision:
 - A controller that safely applies real serving changes and measures their effect. The current Vidur optimizer recommends among offline simulations; the rules controller operates on simulated topology.
 
 These are not represented as complete. Start with the CPU model request, then proceed to the real serving integration in small, hardware-appropriate steps.
+
+
+## Autonomous episodic controller
+
+Start gateway/dashboard and the Vidur service, then use **Start autonomous session** on the dashboard. Default traffic is 4 → 8 → 4 QPS, with 32 requests per independent simulation. The controller observes the active replica count, explores 1/2/4 replicas, minimizes normalized p95 TTFT/E2E target violations and then replica count, applies its choice to a fresh validation episode, and accepts or rolls back. Validation errors also restore the previous configuration.
+
+Evidence persists in simulator_output/autonomy_memory.json. For identical traffic and request counts, previously inferior candidates are skipped; promising candidates are still measured again. This is tabular evidence reuse, not neural policy training. Stop takes effect after the current subprocess completes (up to its 30-minute timeout). Jobs are serialized with manual sweeps. Sessions are bounded and do not restart automatically after service restart.
+
+GET localhost:8101/autonomy exposes state/events. POST /autonomy/start accepts traffic, cycles, ttft_ms, e2e_seconds, requests and interval_seconds. POST /autonomy/stop requests a stop.
+
+These are independent Vidur episodes. Queue/KV state and reconfiguration overhead do not carry between them. Applied replica counts govern subsequent simulation experiments; they do not reconfigure the separate toy gateway runtime or real GPUs. This implements autonomous episodic experimentation, validation and rollback, not continuous live-cluster control. The initial dashboard shows p95 TTFT observations and an event timeline; it uses fixed default targets of 600 ms TTFT and 10 s E2E.
+
+Validation performed: frontend production build, Python syntax checks, and deterministic evaluator checks for accept, regression rollback and evidence reload. A full Vidur session still needs execution in the configured Docker environment.
