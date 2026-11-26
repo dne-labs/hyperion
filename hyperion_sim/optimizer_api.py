@@ -65,6 +65,14 @@ def command_for(args: SweepRequest, replicas: int, chunk_size: int) -> list[str]
         "--no-metrics_config_store_plots",
         "--no-metrics_config_enable_chrome_trace",
     ]
+    command.extend([
+        "--random_forrest_execution_time_predictor_config_compute_input_file", "/opt/vidur/data/profiling/compute/{DEVICE}/{MODEL}/mlp.csv",
+        "--random_forrest_execution_time_predictor_config_attention_input_file", "/opt/vidur/data/profiling/compute/{DEVICE}/{MODEL}/attention.csv",
+        "--random_forrest_execution_time_predictor_config_all_reduce_input_file", "/opt/vidur/data/profiling/network/{NETWORK_DEVICE}/all_reduce.csv",
+        "--random_forrest_execution_time_predictor_config_send_recv_input_file", "/opt/vidur/data/profiling/network/{NETWORK_DEVICE}/send_recv.csv",
+        "--metrics_config_output_dir", str(RUN_ROOT),
+        "--random_forrest_execution_time_predictor_config_num_training_job_threads", "2",
+    ])
     scheduler = args.scheduler
     command.extend([f"--{scheduler}_scheduler_config_batch_size_cap", str(args.batch_size)])
     if scheduler == "sarathi":
