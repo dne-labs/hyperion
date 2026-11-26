@@ -195,3 +195,7 @@ async def sweep(request: SweepRequest) -> dict:
         "note": "These are offline estimates for an A100 profile, not physical GPU measurements.",
         "completed_runs": results,
     }
+
+
+from hyperion_sim.autonomy import install_autonomy
+pilot = install_autonomy(app, RUN_ROOT, RUN_LOCK, run_one, SweepRequest)
