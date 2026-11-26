@@ -72,6 +72,7 @@ class Autopilot:
                         evidence = self.memory.get(json.dumps([qps, request.requests, n]))
                         return self.score(evidence["profile"], request) if evidence else (-1, n)
                     choices.sort(key=rank)
+                    choices = [n for n in choices if rank(n) < self.score(baseline, request)]
                     best = baseline
                     self.event("baseline", replicas=old, latency=baseline["latency"])
                     for candidate in choices:
@@ -84,7 +85,7 @@ class Autopilot:
                     if self.stop_requested: break
                     chosen = best["replicas"]
                     if chosen != old:
-                        self.state.update(active_replicas=chosen, phase="validate")
+                        self.state.update(active_replicas=chosen, phase="validate", rollback_replicas=old)
                         self.event("applied", previous=old, replicas=chosen, scope="next independent Vidur episode")
                         validation = await self.measure(qps, chosen, request)
                         if self.score(validation, request) >= self.score(baseline, request):
@@ -94,6 +95,7 @@ class Autopilot:
                             self.event("accepted", replicas=chosen, before=baseline["latency"], after=validation["latency"])
                     else:
                         self.event("held", replicas=old, reason="No tested candidate improves the objective")
+                    self.state.pop("rollback_replicas", None)
                     self.state["phase"] = "cooldown"
                     self.save()
                     for _ in range(math.ceil(request.interval_seconds)):
@@ -101,6 +103,9 @@ class Autopilot:
                         await asyncio.sleep(1)
                 self.state["status"] = "stopped" if self.stop_requested else "completed"
         except Exception as error:
+            if "rollback_replicas" in self.state:
+                self.state["active_replicas"] = self.state.pop("rollback_replicas")
+                self.event("rollback", replicas=self.state["active_replicas"], reason="Validation failed")
             self.state.update(status="failed", error=str(error))
             self.event("error", message=str(error))
         finally:
