@@ -1,4 +1,5 @@
 "use client";
+import Autonomy from "./autonomy";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Activity, ArrowDownRight, Check, ChevronDown, CircleHelp, Cpu, Gauge, Layers3, Play, RefreshCw, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
@@ -185,6 +186,7 @@ export default function Home() {
         </aside>
       </section>
 
+      <Autonomy />
       <section className="metrics-row">
         <MetricCard icon={Layers3} label="Saved candidates" value={String(runs.length)} hint="Vidur profiles available for comparison" />
         <MetricCard icon={Check} label="SLO compliant" value={passing + " / " + runs.length} hint="Candidates inside both latency limits" />
